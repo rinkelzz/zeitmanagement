@@ -1,0 +1,24 @@
+{
+    "Zeitmanagement.js": {
+        "SYNO.SDS.Zeitmanagement.Application": {
+            "type": "app",
+            "title": "Zeitmanagement",
+            "desc": "Aufgaben, Projektzeiten, Kalender",
+            "icon": "images/icon_{0}.png",
+            "texts": "texts",
+            "allUsers": true,
+            "allowMultiInstance": false,
+            "appWindow": "SYNO.SDS.Zeitmanagement.AppWindow",
+            "grantPrivilege": "all",
+            "advanceGrantPrivilege": true,
+            "depend": ["SYNO.SDS.Zeitmanagement.AppWindow"]
+        },
+        "SYNO.SDS.Zeitmanagement.AppWindow": {
+            "type": "lib",
+            "title": "Zeitmanagement",
+            "icon": "images/icon_{0}.png",
+            "texts": "texts",
+            "depend": []
+        }
+    }
+}

@@ -1,0 +1,10 @@
+[
+    {
+        "step_title": "Zeitmanagement deinstallieren",
+        "items": [
+            {
+                "desc": "<b>Achtung:</b> Beim Deinstallieren werden alle Aufgaben, Projekte und Zeiten gelöscht. Sicherungen im freigegebenen Ordner (Verwaltung → System → Datensicherung) bleiben erhalten. Für ein Update einfach die neue Version installieren – dabei bleiben die Daten erhalten."
+            }
+        ]
+    }
+]
