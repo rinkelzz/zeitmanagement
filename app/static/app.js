@@ -129,6 +129,7 @@ async function showTab(name) {
   store.set("tab", name);
   history.replaceState(null, "", "#" + name + (name === "admin" ? "/" + (store.get("asec") || "einstellungen") : ""));
   try {
+    if (name === "tasks" && window.loadTasks) await loadTasks();
     if (name === "admin") { showAdminSec(store.get("asec") || "einstellungen"); await loadAdmin(); }
     if (name === "me") loadMe();
   } catch (e) { console.error(e); }
@@ -227,6 +228,8 @@ function fillSettings() {
   $("smtpFrom").value = s.smtp_from || ""; $("smtpFromName").value = s.smtp_from_name || "";
   if (!$("mailTestTo").value) $("mailTestTo").value = state.me.email || "";
   $("portVal").value = s.port;
+  if (!$("remHour").options.length) $("remHour").innerHTML = Array.from({ length: 24 }, (_, h) => `<option value="${h}">${p2(h)}:00</option>`).join("");
+  $("remEnabled").checked = s.reminders_enabled; $("remHour").value = String(s.reminder_hour);
   applyBranding(state.branding);
 }
 $$('input[name="setMode"]').forEach(r => r.onchange = () =>
@@ -256,7 +259,8 @@ async function saveMail() {
   $("mailErr").textContent = "";
   const body = { smtp_host: $("smtpHost").value.trim(), smtp_port: Number($("smtpPort").value || 587),
                  smtp_security: $("smtpSec").value, smtp_user: $("smtpUser").value.trim(),
-                 smtp_from: $("smtpFrom").value.trim(), smtp_from_name: $("smtpFromName").value.trim() };
+                 smtp_from: $("smtpFrom").value.trim(), smtp_from_name: $("smtpFromName").value.trim(),
+                 reminders_enabled: $("remEnabled").checked, reminder_hour: Number($("remHour").value) };
   if ($("smtpPw").value) body.smtp_password = $("smtpPw").value;
   try { state.settings = await api("settings", { method: "PATCH", body }); fillSettings(); okMsg($("mailErr"), "Gespeichert."); }
   catch (e) { $("mailErr").textContent = e.message; }
@@ -425,6 +429,7 @@ const THEME_INFO = { classic: "Petrol, hell – bei dunklem Gerät automatisch d
                      dark: "Immer dunkel, Bernstein als Akzent", warm: "Sandtöne, größere Schrift und Knöpfe" };
 function loadMe() {
   $("meName").value = state.me.display_name; $("meEmail").value = state.me.email || "";
+  $("meRemind").checked = state.me.remind !== false;
   $("meInfo").textContent = `Benutzername: ${state.me.username}` + (state.me.is_admin ? " · Chef/Admin" : "") +
     (state.me.via_dsm ? " · angemeldet über DSM" : "") + (isTeam() ? "" : " · Modus Einzelperson");
   $("pwCard").classList.toggle("hidden", !state.me.has_password);
@@ -453,7 +458,8 @@ function showThemes() {
 async function saveMe() {
   $("meErr").textContent = "";
   try {
-    state.me = await api("me", { method: "PATCH", body: { display_name: $("meName").value.trim(), email: $("meEmail").value.trim() } });
+    state.me = await api("me", { method: "PATCH", body: { display_name: $("meName").value.trim(), email: $("meEmail").value.trim(),
+                                                          remind: $("meRemind").checked } });
     showMe(); okMsg($("meErr"), "Gespeichert.");
   } catch (e) { $("meErr").textContent = e.message; }
 }
@@ -527,6 +533,11 @@ $("alMore").onclick = () => loadAudit(true).catch(e => { $("alErr").textContent 
 $("alCsv").onclick = () => downloadFile("api/v1/audit/export.csv?" + auditFilter().toString(), "aenderungsprotokoll.csv")
   .catch(e => { $("alErr").textContent = e.message; });
 $("meSave").onclick = saveMe;
+$("meRemind").onchange = saveMe;
+$("meRemindTest").onclick = async () => {
+  $("meErr").textContent = "";
+  try { okMsg($("meErr"), (await api("me/reminder-test", { method: "POST" })).message); } catch (e) { $("meErr").textContent = e.message; }
+};
 $("pwSave").onclick = savePassword;
 $("logoutBtn").onclick = logout;
 fetch(url("api/v1/health")).then(r => r.json()).then(h => { $("version").textContent = h.version; }).catch(() => {});

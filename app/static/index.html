@@ -39,13 +39,35 @@
 <main>
   <div id="httpWarn" class="httpwarn hidden"><b>Unverschlüsselte Verbindung aus dem Internet.</b> Das Zeitmanagement ist gerade per <code>http://</code> von außen erreichbar – Passwort und Anmeldung können mitgelesen werden. Bitte den Port nicht direkt freigeben, sondern über den Reverse Proxy von DSM mit <code>https://</code>.</div>
 
-  <!-- AUFGABEN (ab 0.2) -->
+  <!-- AUFGABEN -->
   <div data-page="tasks" class="page hidden">
-    <section class="card empty">
-      <div class="big">✅</div>
-      <h2>Aufgaben kommen mit Version 0.2</h2>
-      <p>Hier entstehen deine To-dos – mit Fälligkeit, Priorität, Projekten und Aufgabenlisten<span class="teamOnly">, Zuständigen</span> und einer täglichen Erinnerungs-Mail.</p>
-    </section>
+    <div class="split">
+      <aside class="card side" id="taskSide"></aside>
+      <section class="card" id="taskMain">
+        <select id="taskViewSel" class="mobileOnly" aria-label="Ansicht"></select>
+        <div class="toolbar"><h2 id="taskTitle">Aufgaben</h2>
+          <div class="row"><label class="inline small hidden" id="showDoneWrap"><input type="checkbox" id="showDone"> erledigte anzeigen</label>
+            <button class="mini hidden" id="projEditBtn">Bearbeiten</button></div></div>
+        <div id="projForm" class="card projform hidden"></div>
+        <div class="quick" id="quickWrap">
+          <input id="qaText" maxlength="500" autocomplete="off" placeholder="Neue Aufgabe … z. B. „Backup prüfen morgen !hoch #büro“">
+          <button class="primary" id="qaAdd">Hinzufügen</button>
+        </div>
+        <div class="chips" id="qaPreview"></div>
+        <div class="err" id="taskErr"></div>
+        <div id="taskList"></div>
+        <details class="more small" id="qaHelp"><summary>Kürzel für die Schnelleingabe</summary>
+          <p class="muted" style="margin:4px 0">Alles in einer Zeile, Reihenfolge egal – was erkannt wird, siehst du vor dem Speichern:</p>
+          <ul class="muted" style="margin:4px 0;padding-left:20px">
+            <li><b>Fällig:</b> heute, morgen, übermorgen, mo … fr, sa, so. (mit Punkt), montag … sonntag, nächste woche, in 3 tagen, 12.11. oder 12.11.2026</li>
+            <li><b>Priorität:</b> !hoch, !mittel, !normal (oder !1, !2, !3)</li>
+            <li><b>Liste/Projekt:</b> #name – ohne Leerzeichen, der Anfang reicht (#büro findet „Büro allgemein“)</li>
+            <li class="teamOnly"><b>Zuständig:</b> @benutzername oder @vorname</li>
+            <li>Ein Wort mit \ davor bleibt im Titel: <code>Termin \morgen absagen</code></li>
+          </ul>
+        </details>
+      </section>
+    </div>
   </div>
 
   <!-- ZEITEN (ab 0.3) -->
@@ -139,8 +161,16 @@
     </section>
 
     <section class="card asec" data-asec="mail">
-      <h2>Mailserver (SMTP)</h2>
-      <p class="muted small" style="margin-top:0">Für Erinnerungen an fällige Aufgaben (ab Version 0.2). Das Passwort wird nicht in Datensicherungen gespeichert.</p>
+      <h2>Erinnerungen</h2>
+      <p class="muted small" style="margin-top:0">Jeden Morgen eine Sammel-Mail mit überfälligen und heute fälligen Aufgaben – an alle mit E-Mail-Adresse,
+        die die Erinnerung unter „Mein Zugang“ nicht abgeschaltet haben<span class="teamOnly">. Im Team bekommt jeder seine zugewiesenen Aufgaben
+        und eigene ohne Zuständige</span>. Ohne fällige Aufgaben kommt keine Mail.</p>
+      <div class="row">
+        <label class="inline"><input type="checkbox" id="remEnabled"> Erinnerungen verschicken ab</label>
+        <select id="remHour" style="width:90px"></select>
+      </div>
+      <h3>Mailserver (SMTP)</h3>
+      <p class="muted small" style="margin-top:0">Das Passwort wird nicht in Datensicherungen gespeichert.</p>
       <div class="setgrid">
         <fieldset><legend>Server</legend>
           <label>Server <input id="smtpHost" placeholder="smtp.strato.de"></label>
@@ -254,6 +284,10 @@
         <label>E-Mail (für Erinnerungen) <input id="meEmail" type="email" style="width:240px"></label>
         <label>&nbsp;<button class="primary" id="meSave">Speichern</button></label>
       </div>
+      <div class="row" style="margin-top:8px">
+        <label class="inline"><input type="checkbox" id="meRemind"> Tägliche Erinnerung an fällige Aufgaben per Mail</label>
+        <button class="mini" id="meRemindTest">Jetzt testen</button>
+      </div>
       <p class="muted small" id="meInfo"></p>
       <div class="err" id="meErr"></div>
     </section>
@@ -276,5 +310,6 @@
 </div>
 
 <script src="static/app.js?v={{v}}"></script>
+<script src="static/tasks.js?v={{v}}"></script>
 </body>
 </html>

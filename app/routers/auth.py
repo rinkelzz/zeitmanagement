@@ -52,6 +52,7 @@ def user_out(row: sqlite3.Row) -> dict:
         "active": bool(row["active"]),
         "has_password": bool(row["password_hash"]),
         "theme": row["theme"],
+        "remind": bool(row["remind"]) if "remind" in row.keys() else True,
     }
 
 
@@ -156,6 +157,7 @@ class ProfileIn(BaseModel):
     display_name: Optional[str] = Field(None, min_length=1, max_length=80)
     email: Optional[str] = Field(None, max_length=200, description="für Erinnerungen per Mail, leer = keine Mails")
     theme: Optional[str] = Field(None, description="Design: classic, dsm, dark, warm; null = Standard der Firma")
+    remind: Optional[bool] = Field(None, description="tägliche Erinnerungs-Mail an fällige Aufgaben")
 
 
 @router.patch("/me")
@@ -174,6 +176,8 @@ def update_me(data: ProfileIn, request: Request, user=Depends(current_user), con
         if data.theme is not None and data.theme not in THEMES:
             raise HTTPException(400, "Unbekanntes Design")
         conn.execute("UPDATE users SET theme = ? WHERE id = ?", (data.theme, user["id"]))
+    if data.remind is not None:
+        conn.execute("UPDATE users SET remind = ? WHERE id = ?", (int(data.remind), user["id"]))
     if changes:
         audit(conn, user["id"], "profile_updated", f"user:{user['id']}", ", ".join(sorted(changes)))
     return me(request, conn.execute("SELECT * FROM users WHERE id = ?", (user["id"],)).fetchone(), conn)

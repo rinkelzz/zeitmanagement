@@ -1,4 +1,4 @@
-"""Hintergrund-Aufgaben: nächtliche Datensicherung und Update-Prüfung (später: Erinnerungs-Mails).
+"""Hintergrund-Aufgaben: Erinnerungs-Mails, nächtliche Datensicherung und Update-Prüfung.
 
 Ein Thread, der alle paar Minuten nachsieht, ob etwas fällig ist. Fehler werden protokolliert,
 stoppen aber nie die App.
@@ -13,6 +13,18 @@ _thread: Optional[threading.Thread] = None
 
 
 def run_once() -> None:
+    try:
+        from . import reminders
+        from .db import connect
+        conn = connect()
+        try:
+            for r in reminders.run_due(conn):
+                state = "verschickt" if r["status"] == "sent" else r["status"] + (": " + r["error"] if r.get("error") else "")
+                print(f"[zeitmanagement] Erinnerung für Benutzer {r['user_id']}: {state}", flush=True)
+        finally:
+            conn.close()
+    except Exception as e:  # noqa: BLE001
+        print(f"[zeitmanagement] Erinnerungen FEHLER: {e}", flush=True)
     try:
         from . import backup
         b = backup.run_due()

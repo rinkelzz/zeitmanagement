@@ -10,14 +10,15 @@ Aufgaben, Projektzeiten, Kalender und Dienstplan für kleine Firmen, Praxen und 
 auf der eigenen Synology NAS, mit eigenem Fenster in DSM. Wer in DSM angemeldet ist, ist es auch hier.
 Die Daten bleiben im Haus.
 
-> **Stand:** Version 0.1 ist das Fundament (Anmeldung, Benutzer, Einstellungen, Datensicherung, Updates).
-> Die Fachfunktionen kommen Schritt für Schritt – siehe [Fahrplan](#fahrplan).
+> **Stand:** Version 0.2 – Aufgaben mit Projekten, Aufgabenlisten, Schnelleingabe und Erinnerungs-Mail.
+> Projektzeiten folgen mit 0.3 – siehe [Fahrplan](#fahrplan).
 
-![Einstellungen](docs/screenshots/einstellungen.png)
+![Aufgaben](docs/screenshots/aufgaben.png)
 
 ## Inhalt
 
 - [Funktionen](#funktionen)
+- [Aufgaben](#aufgaben)
 - [Fahrplan](#fahrplan)
 - [Installation auf der Synology](#installation-auf-der-synology)
 - [Updates über das Paket-Zentrum](#updates-über-das-paket-zentrum)
@@ -29,6 +30,10 @@ Die Daten bleiben im Haus.
 
 ## Funktionen
 
+- **Aufgaben** mit Fälligkeit, Priorität, Projekten und Aufgabenlisten, Notizen und (im Team) Zuständigen.
+  Ansichten Heute, Überfällig, Demnächst, Meine Aufgaben, Alle offenen, Ohne Liste und Erledigt.
+- **Schnelleingabe** in einer Zeile: „Backup prüfen morgen !hoch #büro @anna“ – die App zeigt vor dem Speichern, was sie erkannt hat.
+- **Tägliche Erinnerungs-Mail** mit überfälligen und heute fälligen Aufgaben, Uhrzeit einstellbar, pro Person abschaltbar.
 - **Zwei Betriebsarten**, jederzeit umschaltbar:
   - **Einzelperson** – nur du, ohne Benutzer, Rollen und Zuständige. Jeder DSM-Administrator landet in deinem Konto.
   - **Team** – Chef/Admin (darf alles) und Mitarbeiter (sehen nur ihre eigenen Projekte).
@@ -45,15 +50,50 @@ Die Daten bleiben im Haus.
 
 | | |
 |---|---|
+| ![Projekt bearbeiten](docs/screenshots/projekt.png) | ![Einstellungen](docs/screenshots/einstellungen.png) |
 | ![Anmeldung](docs/screenshots/anmeldung.png) | ![Mein Zugang](docs/screenshots/mein-zugang.png) |
-| ![System](docs/screenshots/system.png) | |
+
+## Aufgaben
+
+**Projekte und Aufgabenlisten.** Ein *Projekt* gehört optional zu einem Kunden und ist ab Version 0.3 auch das Ziel für
+Zeitbuchungen. Eine *Aufgabenliste* ist eine einfache Sammlung ohne Kunde, z. B. „Büro allgemein“ oder „Einkauf“.
+Aufgaben ohne Liste landen unter „Ohne Liste“.
+
+**Wer sieht was (Team-Modus)?**
+
+| | Chef/Admin | Mitarbeiter |
+|---|---|---|
+| Projekte anlegen | ✅ | – |
+| Aufgabenlisten anlegen | ✅ | ✅ (wird automatisch Mitglied) |
+| Projekte und Listen sehen | alle | nur die, in denen er Mitglied ist |
+| Aufgaben sehen | alle | in seinen Projekten/Listen, ihm zugewiesene und eigene ohne Liste |
+| Aufgaben löschen | alle | selbst angelegte |
+
+**Schnelleingabe** – alles in einer Zeile, Reihenfolge egal:
+
+| Kürzel | Bedeutung |
+|---|---|
+| `heute`, `morgen`, `übermorgen` | Fälligkeit |
+| `mo` … `sa`, `so.`, `montag` … `sonntag` | der nächste dieser Wochentage |
+| `nächste woche`, `in 3 tagen`, `12.11.`, `12.11.2026` | Fälligkeit |
+| `!hoch`, `!mittel`, `!normal` (oder `!1`, `!2`, `!3`) | Priorität |
+| `#büro` | Projekt oder Liste – ohne Leerzeichen, der Anfang reicht |
+| `@anna` | zuständig (Benutzername oder Vorname, nur im Team) |
+| `\morgen` | bleibt als Wort im Titel |
+
+![Schnelleingabe](docs/screenshots/schnelleingabe.png)
+
+**Erinnerungen:** Unter **Verwaltung → Mail** den Mailserver eintragen und die Uhrzeit wählen (Standard 7 Uhr). Jede Person
+mit E-Mail-Adresse bekommt dann morgens eine Sammel-Mail mit ihren überfälligen und heute fälligen Aufgaben – im Team die
+ihr zugewiesenen und eigene ohne Zuständige. Ist nichts fällig, kommt keine Mail. Unter **Mein Zugang** lässt sich die
+Erinnerung abschalten oder sofort testen.
 
 ## Fahrplan
 
 | Version | Inhalt |
 |---|---|
 | **0.1** ✅ | Fundament: Anmeldung (lokal + DSM, SSO), Einzelperson/Team, Benutzer, Firma & Logo, Designs, Mail, Port, Datensicherung, Updates, Protokoll |
-| **0.2** | **Aufgaben:** Aufgabenlisten und Projekte, Fälligkeit, Priorität, Zuständige, Schnelleingabe („morgen !hoch“), tägliche Erinnerungs-Mail |
+| **0.2** ✅ | **Aufgaben:** Aufgabenlisten und Projekte, Fälligkeit, Priorität, Zuständige, Schnelleingabe („morgen !hoch“), tägliche Erinnerungs-Mail |
 | **0.3** | **Projektzeiten:** Kunden und Projekte, Stoppuhr oder Nachtragen, Auswertung nach Kunde/Projekt/Mitarbeiter, Export PDF/Excel/CSV |
 | später | Wiederkehrende Aufgaben, Unteraufgaben, Projektbudget · **Kalender** mit iCal-Abo fürs iPhone · **Dienstplan** mit Wochenplan als PDF |
 
@@ -159,7 +199,8 @@ for DSM users. The user interface is German.
 - Single-person or team mode, DSM login incl. 2FA, company name and logo, four themes, nightly backups to a shared
   folder (for Hyper Backup), updates through Package Center (the app is its own package source), audit log,
   configurable port.
-- Version 0.1 is the foundation; tasks (0.2) and project time tracking with PDF/Excel/CSV reports (0.3) come next.
+- Tasks (0.2): projects and task lists, due dates, priorities, assignees, one-line quick add
+  („Backup prüfen morgen !hoch #büro @anna“), daily reminder email. Project time tracking with PDF/Excel/CSV reports comes in 0.3.
 
 Install: download the `.spk` from [Releases](https://github.com/rinkelzz/zeitmanagement/releases) →
 Package Center → Manual Install. Security notes: [SECURITY.md](SECURITY.md). License: MIT.

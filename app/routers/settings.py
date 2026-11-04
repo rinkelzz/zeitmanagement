@@ -37,6 +37,8 @@ class SettingsIn(BaseModel):
     smtp_password: Optional[str] = Field(None, max_length=200, description="leer lassen = unverändert")
     smtp_from: Optional[str] = Field(None, max_length=200)
     smtp_from_name: Optional[str] = Field(None, max_length=100)
+    reminders_enabled: Optional[bool] = Field(None, description="Tägliche Erinnerungs-Mail an alle mit E-Mail-Adresse")
+    reminder_hour: Optional[int] = Field(None, ge=0, le=23, description="ab dieser Stunde wird verschickt")
 
 
 ADMIN_ONLY = ("smtp_", "dsm_url", "public_url_env")
@@ -63,6 +65,8 @@ def settings_out(conn) -> dict:
         "smtp_password_set": bool(get_setting(conn, "smtp_password")),
         "smtp_from": get_setting(conn, "smtp_from"),
         "smtp_from_name": get_setting(conn, "smtp_from_name"),
+        "reminders_enabled": get_setting(conn, "reminders_enabled") == "1",
+        "reminder_hour": int(get_setting(conn, "reminder_hour") or 7),
     }
 
 
@@ -117,6 +121,10 @@ def update_settings(data: SettingsIn, admin=Depends(admin_user), conn: sqlite3.C
         if data.smtp_security not in ("starttls", "ssl", "none"):
             raise HTTPException(400, "Verschlüsselung muss starttls, ssl oder none sein")
         set_setting(conn, "smtp_security", data.smtp_security)
+    if changes.get("reminders_enabled") is not None:
+        set_setting(conn, "reminders_enabled", "1" if data.reminders_enabled else "0")
+    if changes.get("reminder_hour") is not None:
+        set_setting(conn, "reminder_hour", str(data.reminder_hour))
     if data.smtp_password:  # leer = unverändert
         set_setting(conn, "smtp_password", data.smtp_password)
     if "public_url" in changes:
@@ -170,11 +178,37 @@ def mail_test(data: MailTestIn, admin=Depends(admin_user), conn: sqlite3.Connect
     return {"ok": True, "message": f"Testmail an {data.to.strip()} verschickt"}
 
 
+@router.post("/me/reminder-test")
+def reminder_test(user=Depends(current_user), conn: sqlite3.Connection = Depends(get_db)):
+    """Die eigene Erinnerung sofort schicken (unabhängig von Uhrzeit und ob sie heute schon kam)."""
+    from .. import reminders
+    from ..timeutil import today_local
+    if not user["email"]:
+        raise HTTPException(400, "Bitte zuerst unter „Mein Zugang“ eine E-Mail-Adresse eintragen")
+    try:
+        r = reminders.send_for(conn, user, today_local().isoformat())
+    except MailError as e:
+        raise HTTPException(502 if smtp_config(conn)["host"] else 400, str(e))
+    if r["status"] == "empty":
+        return {"ok": True, "message": "Heute ist nichts fällig – es wurde keine Mail verschickt."}
+    return {"ok": True, "message": f"Erinnerung mit {r['count']} Aufgabe{'n' if r['count'] != 1 else ''} an {user['email']} verschickt"}
+
+
 # --- Änderungsprotokoll -------------------------------------------------------
 
-AUDIT_CATEGORIES = {"anmeldung": "Anmeldung", "benutzer": "Benutzer", "einstellungen": "Einstellungen",
-                    "sicherung": "Datensicherung"}
+AUDIT_CATEGORIES = {"aufgaben": "Aufgaben", "projekte": "Projekte & Kunden", "anmeldung": "Anmeldung",
+                    "benutzer": "Benutzer", "einstellungen": "Einstellungen", "sicherung": "Datensicherung"}
 AUDIT_ACTIONS = {
+    "task_created": ("aufgaben", "Aufgabe angelegt"),
+    "task_updated": ("aufgaben", "Aufgabe geändert"),
+    "task_done": ("aufgaben", "Aufgabe erledigt"),
+    "task_reopened": ("aufgaben", "Aufgabe wieder geöffnet"),
+    "task_deleted": ("aufgaben", "Aufgabe gelöscht"),
+    "project_created": ("projekte", "Projekt/Liste angelegt"),
+    "project_updated": ("projekte", "Projekt/Liste geändert"),
+    "project_deleted": ("projekte", "Projekt/Liste gelöscht"),
+    "customer_created": ("projekte", "Kunde angelegt"),
+    "customer_updated": ("projekte", "Kunde geändert"),
     "login": ("anmeldung", "Anmeldung"),
     "password_changed": ("anmeldung", "Passwort geändert"),
     "profile_updated": ("benutzer", "Eigenes Profil geändert"),

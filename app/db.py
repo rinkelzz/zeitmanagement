@@ -63,9 +63,75 @@ CREATE TABLE IF NOT EXISTS app_settings (
 """)
 
 
+def _m2_aufgaben(conn: sqlite3.Connection) -> None:
+    """Version 0.2: Kunden, Projekte und Aufgabenlisten, Aufgaben mit Zuständigen, Erinnerungen."""
+    _run(conn, """
+CREATE TABLE IF NOT EXISTS customers (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL,
+    archived    INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS projects (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind        TEXT NOT NULL DEFAULT 'project',   -- project (Kunde/Zeiten) | list (reine Aufgabenliste)
+    name        TEXT NOT NULL,
+    customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+    color       TEXT NOT NULL DEFAULT '#0f766e',
+    archived    INTEGER NOT NULL DEFAULT 0,
+    created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS project_members (
+    project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (project_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS tasks (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id    INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+    title         TEXT NOT NULL,
+    notes         TEXT NOT NULL DEFAULT '',
+    due_date      TEXT,                          -- YYYY-MM-DD (lokal)
+    priority      INTEGER NOT NULL DEFAULT 3,    -- 1 hoch, 2 mittel, 3 normal
+    done          INTEGER NOT NULL DEFAULT 0,
+    created_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT,
+    completed_at  TEXT,
+    completed_by  INTEGER REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id, done);
+CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(done, due_date);
+
+CREATE TABLE IF NOT EXISTS task_assignees (
+    task_id  INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (task_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_assignees_user ON task_assignees(user_id);
+
+CREATE TABLE IF NOT EXISTS reminder_log (
+    user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    day      TEXT NOT NULL,                      -- YYYY-MM-DD (lokal)
+    status   TEXT NOT NULL,                      -- sent | empty | error
+    detail   TEXT,
+    ts       TEXT NOT NULL,
+    PRIMARY KEY (user_id, day)
+);
+""")
+    if "remind" not in _columns(conn, "users"):
+        # tägliche Erinnerungs-Mail an diese Person (wenn E-Mail hinterlegt)
+        conn.execute("ALTER TABLE users ADD COLUMN remind INTEGER NOT NULL DEFAULT 1")
+
+
 # Version → Schritt. Nur anhängen, nie ändern!
 MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     1: _m1_basis,
+    2: _m2_aufgaben,
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 
@@ -94,6 +160,9 @@ DEFAULT_SETTINGS = {
     "backup_hour": "2",
     "backup_keep_days": "30",
     "backup_dir": "",              # z. B. /volume1/backup/zeitmanagement
+    # Tägliche Erinnerungs-Mail (fällige und überfällige Aufgaben)
+    "reminders_enabled": "1",
+    "reminder_hour": "7",
 }
 
 
