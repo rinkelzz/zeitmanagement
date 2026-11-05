@@ -352,6 +352,13 @@ async function loadReports() {
     $("rpUser").value = u;
   }
   if (!$("rpFrom").value) { const [a, b] = periodRange("month"); $("rpFrom").value = a; $("rpTo").value = b; }
+  if (modOn("helpdesk")) {
+    try {
+      const cats = await api("helpdesk/categories"), cur = $("rpCategory").value;
+      $("rpCategory").innerHTML = '<option value="">alle</option>' + cats.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
+      $("rpCategory").value = cur;
+    } catch (e) { /* egal */ }
+  }
   await runReport();
 }
 function fillReportProjects() {
@@ -368,6 +375,7 @@ function reportParams() {
   if ($("rpBilled").value !== "all") p.set("billed", $("rpBilled").value);
   if ($("rpProject").value) p.set("project_id", $("rpProject").value);
   if (boss() && $("rpUser").value) p.set("user_id", $("rpUser").value);
+  if (modOn("helpdesk") && $("rpCategory").value) p.set("category_id", $("rpCategory").value);
   return p;
 }
 async function runReport() {
@@ -381,6 +389,7 @@ async function runReport() {
     $("rpGroup").value = d.group_options[g] ? g : "customer";
     renderReport();
   } catch (e) { $("rpErr").textContent = e.message; }
+  if (window.loadHdStats) loadHdStats();
 }
 function renderReport() {
   const d = RP.data;
@@ -459,7 +468,7 @@ $("wkPrev").onclick = () => { TM.weekStart = addDays(TM.weekStart, -7); TM.openE
 $("wkNext").onclick = () => { TM.weekStart = addDays(TM.weekStart, 7); TM.openEdit = null; loadWeek().catch(e => { $("wkErr").textContent = e.message; }); };
 $("wkToday").onclick = () => { TM.weekStart = mondayOf(new Date()); TM.openEdit = null; loadWeek().catch(e => { $("wkErr").textContent = e.message; }); };
 $("wkUser").onchange = () => { TM.viewUser = Number($("wkUser").value); TM.openEdit = null; loadWeek().catch(e => { $("wkErr").textContent = e.message; }); };
-["rpPeriod", "rpFrom", "rpTo", "rpProject", "rpUser", "rpGroup", "rpBilled"].forEach(id => $(id).onchange = runReport);
+["rpPeriod", "rpFrom", "rpTo", "rpProject", "rpUser", "rpGroup", "rpBilled", "rpCategory"].forEach(id => $(id).onchange = runReport);
 $("rpBillBtn").onclick = () => billing("bill", null);
 $("rpUnbillBtn").onclick = () => billing("unbill", null);
 $("rpCustomer").onchange = () => { fillReportProjects(); runReport(); };

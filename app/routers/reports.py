@@ -16,9 +16,12 @@ from ..timeutil import now_utc_str
 router = APIRouter(prefix="/api/v1/reports", tags=["Auswertung"])
 
 
-def _build(conn, user, d_from, d_to, customer_id, project_id, user_id, group, billed="all"):
+def _build(conn, user, d_from, d_to, customer_id, project_id, user_id, group, billed="all", category_id=None):
+    from .. import modules
+    if group == "ticket" and not modules.enabled(conn, "helpdesk"):
+        group = "customer"
     try:
-        return timereport.build(conn, user, d_from, d_to, customer_id, project_id, user_id, group, billed)
+        return timereport.build(conn, user, d_from, d_to, customer_id, project_id, user_id, group, billed, category_id)
     except timereport.ReportError as e:
         raise HTTPException(400, str(e))
 
@@ -32,16 +35,19 @@ def report(
     user_id: Optional[int] = Query(None, description="nur Chef; Mitarbeiter sehen immer nur ihre eigenen Zeiten"),
     group: str = Query("customer", description=", ".join(timereport.GROUPS)),
     billed: str = Query("all", description="all, open (nicht abgerechnet) oder billed"),
+    category_id: Optional[int] = Query(None, description="nur Zeiten an Tickets dieser Kategorie"),
     entries: bool = Query(True, description="Einzelbuchungen mitliefern"),
     user=Depends(current_user),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    data = _build(conn, user, from_, to, customer_id, project_id, user_id, group, billed)
+    from .. import modules
+    data = _build(conn, user, from_, to, customer_id, project_id, user_id, group, billed, category_id)
     data["created"] = data["created"].isoformat()
     if not entries:
         data["entries"] = []
     boss_team = data["team"] and sees_all(conn, user)
-    data["group_options"] = {k: v for k, v in timereport.GROUPS.items() if k != "user" or boss_team}
+    hd_on = modules.enabled(conn, "helpdesk")
+    data["group_options"] = {k: v for k, v in timereport.GROUPS.items() if (k != "user" or boss_team) and (k != "ticket" or hd_on)}
     data["can_bill"] = sees_all(conn, user)
     return data
 
@@ -56,10 +62,11 @@ def export(
     user_id: Optional[int] = None,
     group: str = "customer",
     billed: str = "all",
+    category_id: Optional[int] = None,
     user=Depends(current_user),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    data = _build(conn, user, from_, to, customer_id, project_id, user_id, group, billed)
+    data = _build(conn, user, from_, to, customer_id, project_id, user_id, group, billed, category_id)
     try:
         content, mime, name = timereport.render(conn, data, format)
     except timereport.ReportError as e:

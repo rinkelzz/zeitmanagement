@@ -432,6 +432,45 @@ CREATE INDEX IF NOT EXISTS idx_portal_sessions_email ON portal_sessions(email);
         conn.execute("ALTER TABLE tickets ADD COLUMN link_salt TEXT NOT NULL DEFAULT ''")
 
 
+def _m10_komfort(conn: sqlite3.Connection) -> None:
+    """Version 1.0: Kategorien für Tickets, Textbausteine, Zeitpunkt der ersten Reaktion."""
+    _run(conn, """
+CREATE TABLE IF NOT EXISTS ticket_categories (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL,
+    color       TEXT NOT NULL DEFAULT '#64748b',
+    sort        INTEGER NOT NULL DEFAULT 0,
+    archived    INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS text_snippets (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    title       TEXT NOT NULL,
+    body        TEXT NOT NULL,
+    owner_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,   -- NULL = gemeinsam für alle
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_snippets_owner ON text_snippets(owner_id);
+""")
+    cols = _columns(conn, "tickets")
+    if "category_id" not in cols:
+        conn.execute("ALTER TABLE tickets ADD COLUMN category_id INTEGER REFERENCES ticket_categories(id) ON DELETE SET NULL")
+    if "first_response_at" not in cols:
+        conn.execute("ALTER TABLE tickets ADD COLUMN first_response_at TEXT")
+        # bestehende Tickets: erste Antwort oder Notiz eines Mitarbeiters nach dem Eingang
+        conn.execute("UPDATE tickets SET first_response_at = (SELECT MIN(m.created_at) FROM ticket_messages m "
+                     "WHERE m.ticket_id = tickets.id AND m.kind IN ('reply', 'note') AND m.author_id IS NOT NULL "
+                     "AND m.created_at > tickets.created_at)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_category ON tickets(category_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_created ON tickets(created_at)")
+    if not conn.execute("SELECT 1 FROM ticket_categories LIMIT 1").fetchone():
+        now = now_utc_str()
+        conn.executemany("INSERT INTO ticket_categories(name, color, sort, created_at) VALUES (?, ?, ?, ?)",
+                         [("Drucker", "#7c3aed", 1, now), ("Netzwerk/WLAN", "#0891b2", 2, now), ("E-Mail", "#2563eb", 3, now),
+                          ("Software", "#0f766e", 4, now), ("Hardware", "#c2410c", 5, now), ("Sonstiges", "#64748b", 9, now)])
+
+
 # Version → Schritt. Nur anhängen, nie ändern!
 MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     1: _m1_basis,
@@ -443,6 +482,7 @@ MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     7: _m7_helpdesk,
     8: _m8_mail,
     9: _m9_portal,
+    10: _m10_komfort,
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 

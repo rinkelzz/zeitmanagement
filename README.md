@@ -10,8 +10,9 @@ Aufgaben, Projektzeiten, Kalender, Dienstplan und Helpdesk für kleine Firmen, P
 auf der eigenen Synology NAS, mit eigenem Fenster in DSM. Wer in DSM angemeldet ist, ist es auch hier.
 Die Daten bleiben im Haus.
 
-> **Stand:** Version 0.9 – Aufgaben, Kalender mit iCal-Abo fürs Handy, Dienstplan mit Wochen-PDF, Projektzeiten
-> mit Auswertung als PDF, Excel und CSV und ein **Helpdesk mit Meldeformular, E-Mail-Postfach, Melder-Portal und Zeit pro Ticket**. Jedes Modul lässt
+> **Stand:** Version 1.0 – Aufgaben, Kalender mit iCal-Abo fürs Handy, Dienstplan mit Wochen-PDF, Projektzeiten
+> mit Auswertung als PDF, Excel und CSV und ein **Helpdesk mit Meldeformular, E-Mail-Postfach, Melder-Portal, Kategorien,
+> Textbausteinen, Kennzahlen und Zeit pro Ticket**. Jedes Modul lässt
 > sich einzeln abschalten – siehe [Fahrplan](#fahrplan).
 
 ![Aufgaben](docs/screenshots/aufgaben.png)
@@ -49,7 +50,8 @@ Die Daten bleiben im Haus.
 - **Projektzeiten** per Stoppuhr (auch direkt an der Aufgabe mit ▶) oder nachgetragen, mit Kennzeichen „vor Ort“.
   Die laufende Stoppuhr steht immer in der Kopfzeile.
 - **Helpdesk:** Meldeformular pro Projekt (mit Anhängen) und **E-Mail-Postfach** (IMAP), Tickets mit Verlauf,
-  Antworten per Mail (auch zurück ins Ticket), interne Notizen, **Melder-Portal** mit „Meine Tickets“ und Statuslink
+  Antworten per Mail (auch zurück ins Ticket), interne Notizen, **Melder-Portal** mit „Meine Tickets“ und Statuslink,
+  Kategorien, Textbausteine, Helpdesk-Kennzahlen und Ticket-Bericht als PDF
   und **Stoppuhr direkt am Ticket** – die Zeit landet auf dem Projekt des Kunden.
 - **Module einzeln abschaltbar** – z. B. nur Helpdesk oder nur Dienstplan.
 - **Auswertung** nach Kunde, Projekt, Aufgabe, Mitarbeiter oder Tag – als **PDF, Excel und CSV**, mit Firmenname und Logo.
@@ -282,6 +284,21 @@ Handy. In der Ticketansicht kopierst du ihn oder erneuerst ihn, falls er in fals
 
 <img src="docs/screenshots/portal-statuslink-handy.png" alt="Statuslink am Handy" width="300">
 
+### Kategorien, Textbausteine, Kennzahlen
+
+- **Kategorien** (Drucker, Netzwerk/WLAN, E-Mail, … – frei änderbar unter Verwaltung → Helpdesk) gelten für alle
+  Projekte. Melder wählen optional einen „Bereich“, du änderst ihn am Ticket. In der Seitenleiste filterst du danach.
+- **Textbausteine:** Im Antwortfeld fügt „📋 Baustein“ fertige Texte ein – mit `{name}`, `{nummer}`, `{titel}`,
+  `{bearbeiter}` und `{firma}` schon ersetzt. Gemeinsame pflegt der Chef, eigene jeder unter „Mein Zugang“.
+- **Auswertung:** Gruppierung „Ticket“ und Filter „Kategorie“ für die Zeiten; darunter für den Chef die
+  **Helpdesk-Kennzahlen** mit Reaktions- und Lösungszeit nach Kunde, Kategorie, Quelle und Monat.
+- **Ticket-Bericht als PDF** – z. B. als Anlage zur Rechnung, interne Notizen nur auf Wunsch.
+
+| | |
+|---|---|
+| ![Textbausteine](docs/screenshots/baustein.png) | ![Helpdesk-Kennzahlen](docs/screenshots/helpdesk-kennzahlen.png) |
+| ![Ticket-Bericht als PDF](docs/screenshots/ticket-pdf.png) | ![Kategorien](docs/screenshots/kategorien.png) |
+
 ## Module
 
 ![Module](docs/screenshots/module.png)
@@ -304,7 +321,7 @@ aus** und muss einmal eingeschaltet werden.
 | **0.7** ✅ | **Helpdesk:** Meldeformular pro Projekt mit Anhängen, Tickets mit Verlauf, Antworten per Mail, interne Notizen, Zeit pro Ticket, Aufbewahrungsfrist · **Module** an/aus |
 | **0.8** ✅ | **Helpdesk per E-Mail:** IMAP-Postfach, Absender-Domains je Projekt, Posteingang „Unzugeordnet“, Antworten landen im Ticket |
 | **0.9** ✅ | **Melder-Portal:** Anmelde-Link per Mail, Meine Tickets, Antworten mit Anhängen, „Problem gelöst“, neues Problem melden, Statuslink in jeder Mail |
-| 1.0 | Helpdesk-Komfort: Kategorien, Textbausteine, Auswertung pro Ticket |
+| **1.0** ✅ | **Helpdesk-Komfort:** Kategorien, Textbausteine (gemeinsam + persönlich), Zeit pro Ticket in der Auswertung, Helpdesk-Kennzahlen, Ticket-Bericht als PDF |
 
 ## Installation auf der Synology
 
@@ -424,7 +441,8 @@ for DSM users. The user interface is German.
   period for closed tickets. Since 0.8 also an IMAP mailbox: new mails become tickets (matched by sender domain per
   project, unknown senders go to an inbox), replies with the ticket number land in the ticket. Since 0.9 a requester
   portal with passwordless email login, “my tickets”, replies, “resolved/still broken” and a per-ticket status link in
-  every email. Every module (tasks, time tracking, calendar, shift planning, helpdesk) can be switched off.
+  every email. 1.0 adds ticket categories, canned replies with placeholders, helpdesk metrics (response/resolution
+  time) and a ticket report as PDF. Every module (tasks, time tracking, calendar, shift planning, helpdesk) can be switched off.
 
 Install: download the `.spk` from [Releases](https://github.com/rinkelzz/zeitmanagement/releases) →
 Package Center → Manual Install. Security notes: [SECURITY.md](SECURITY.md). License: MIT.

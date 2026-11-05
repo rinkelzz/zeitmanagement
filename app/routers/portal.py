@@ -162,7 +162,8 @@ def me(a: Actor = Depends(actor), conn: sqlite3.Connection = Depends(get_db)):
             "company": get_setting(conn, "company_name"),
             "projects": [] if a.ticket_id else portal.known_projects(conn, a.email),
             "hint": get_setting(conn, "hd_form_hint"), "attachments": get_setting(conn, "hd_attachments") == "1",
-            "max_files": hd.MAX_FILES, "max_mb": hd.MAX_FILE_BYTES // 1048576}
+            "max_files": hd.MAX_FILES, "max_mb": hd.MAX_FILE_BYTES // 1048576,
+            "categories": [] if a.ticket_id else hd.active_categories(conn)}
 
 
 # --- Tickets ---------------------------------------------------------------------------
@@ -193,6 +194,7 @@ class NewIn(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     body: str = Field(..., min_length=1, max_length=20000)
     urgent: bool = False
+    category_id: Optional[int] = None
 
 
 def _upload_window(mid: int) -> dict:
@@ -217,6 +219,10 @@ def new_ticket(data: NewIn, request: Request, background: BackgroundTasks, a: Ac
         pid = data.project_id
     else:
         raise HTTPException(400, "Für dieses Projekt darfst du nicht melden")
+    try:
+        cat = hd.check_category(conn, data.category_id)
+    except ValueError:
+        cat = None
     note_failure(key)
     last = conn.execute("SELECT requester_name, requester_phone FROM tickets WHERE requester_email = ? ORDER BY id DESC LIMIT 1",
                         (a.email,)).fetchone()
@@ -224,7 +230,7 @@ def new_ticket(data: NewIn, request: Request, background: BackgroundTasks, a: Ac
     t = hd.create_ticket(conn, project_id=pid, title=data.title.strip(), body=data.body, priority=1 if data.urgent else 3,
                          source="portal", requester_name=data.name.strip() or (last["requester_name"] if last else "") or a.email.split("@")[0],
                          requester_email=a.email, requester_phone=data.phone.strip() or (last["requester_phone"] if last else ""),
-                         assignee_id=form["assignee_id"] if form else None)
+                         assignee_id=form["assignee_id"] if form else None, category_id=cat)
     nr = hd.number(t["year"], t["seq"])
     audit(conn, None, "ticket_created", f"ticket:{t['id']}", f"{nr} · Portal · {a.email}")
     first = conn.execute("SELECT id FROM ticket_messages WHERE ticket_id = ? ORDER BY id LIMIT 1", (t["id"],)).fetchone()

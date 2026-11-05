@@ -107,6 +107,7 @@ function applyMode() {
   $$("#tabs button").forEach(b => b.classList.toggle("hidden", !tabOn(b.dataset.tab) || (b.dataset.tab === "admin" && !isAdmin())));
   $$("#adminNav [data-asec]").forEach(b => { if (SEC_MODULE[b.dataset.asec]) b.classList.toggle("hidden", !modOn(SEC_MODULE[b.dataset.asec])); });
   $$(".modTimes").forEach(el => el.classList.toggle("hidden", !modOn("times")));
+  $$(".modHelpdesk").forEach(el => el.classList.toggle("hidden", !modOn("helpdesk")));
   $$(".teamOnly").forEach(el => el.classList.toggle("hidden", !isTeam()));
   $$(".admin").forEach(el => el.classList.toggle("hidden", !isAdmin()));
 }
@@ -150,7 +151,7 @@ async function showTab(name) {
     if (name === "tickets" && window.loadTickets) await loadTickets();
     if (name === "reports" && window.loadReports) await loadReports();
     if (name === "admin") { showAdminSec(store.get("asec") || "einstellungen"); await loadAdmin(); }
-    if (name === "me") { loadMe(); if (window.loadFeed) loadFeed(); }
+    if (name === "me") { loadMe(); if (window.loadFeed) loadFeed(); if (window.loadMySnippets) loadMySnippets(); }
   } catch (e) { console.error(e); }
 }
 

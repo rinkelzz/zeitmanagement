@@ -36,6 +36,10 @@
       const b = await (await fetch("../api/v1/branding", { cache: "no-store" })).json();
       if (b && b.logo) { $("pLogo").src = "../api/v1/branding/logo?v=" + b.logo.version; $("pLogo").classList.remove("hidden"); $("pLogoTxt").classList.add("hidden"); }
     } catch (e) { /* ohne Logo */ }
+    if (info.categories && info.categories.length) {
+      $("fCat").innerHTML = '<option value="">Weiß ich nicht</option>' + info.categories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
+      $("fCatWrap").classList.remove("hidden");
+    }
     if (info.hint) { $("fHintText").textContent = info.hint; $("fHint").classList.remove("hidden"); }
     if (info.privacy_url) { $("fPrivacyLink").href = info.privacy_url; $("fPrivacyWrap").classList.remove("hidden"); }
     if (info.attachments) {
@@ -70,6 +74,7 @@
       title: $("fTitle").value.trim(), body: $("fBody").value.trim(),
       urgent: document.querySelector('input[name="urg"]:checked').value === "1",
       privacy: $("fPrivacy").checked, website: $("fWebsite").value,
+      category_id: $("fCat").value ? Number($("fCat").value) : null,
     };
     if (!body.name || !body.email || !body.title || !body.body) { $("fErr").textContent = "Bitte alle Felder mit * ausfüllen."; return; }
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(body.email)) { $("fErr").textContent = "Bitte eine gültige E-Mail-Adresse angeben."; return; }

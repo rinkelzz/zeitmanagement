@@ -257,6 +257,7 @@ AUDIT_ACTIONS = {
     "inbox_discarded": ("helpdesk", "Mail verworfen"),
     "portal_login": ("helpdesk", "Anmeldung im Melder-Portal"),
     "ticket_link_renewed": ("helpdesk", "Statuslink erneuert"),
+    "helpdesk_category": ("helpdesk", "Kategorie geändert"),
     "port_changed": ("einstellungen", "Port geändert"),
     "mail_test": ("einstellungen", "Testmail"),
     "export_csv": ("einstellungen", "CSV-Export"),

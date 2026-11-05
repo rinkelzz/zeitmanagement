@@ -3,7 +3,7 @@
 // Nutzt die Hilfen aus app.js ($, $$, api, url, authHeaders, esc, state, isTeam, isAdmin, okMsg, downloadFile, store, modOn)
 // und die Stoppuhr aus times.js (TM, startTimer, stopTimer, elapsed, hmsStr, hmStr).
 
-const TK = { view: null, projectId: null, q: "", list: [], counts: {}, projects: [], people: [], open: null, detail: null,
+const TK = { view: null, projectId: null, categoryId: null, cats: [], snippets: null, q: "", list: [], counts: {}, projects: [], people: [], open: null, detail: null,
              replyKind: "reply", pending: [], onSite: false, tick: null, thumbs: {} };
 const TK_VIEWS = { inbox: "Unzugeordnet", new: "Neu", mine: "Mir zugewiesen", open: "Alle offenen", wait: "Wartet auf Rückmeldung", done: "Erledigt" };
 const TK_ICON = { new: "", mine: "👤 ", open: "📋 ", wait: "⏳ ", done: "✓ " };
@@ -34,7 +34,8 @@ async function loadTickets() {
   if (TK.view === "mine" && !isTeam()) TK.view = "open";
   if (TK.view === "inbox" && !tkBoss()) TK.view = "open";
   if (tkBoss() && TK.imapOn == null) { try { TK.imapOn = (await api("helpdesk/imap")).enabled; } catch (e) { TK.imapOn = false; } }
-  const [projects, people] = await Promise.all([api("projects"), api("people").catch(() => [])]);
+  const [projects, people, cats] = await Promise.all([api("projects"), api("people").catch(() => []), api("helpdesk/categories").catch(() => [])]);
+  TK.cats = cats;
   TK.projects = projects.filter(p => p.kind === "project" && !p.archived);
   TK.people = people;
   if (TK.projectId != null && !TK.projects.find(p => p.id === TK.projectId)) { TK.projectId = null; TK.view = "open"; }
@@ -44,13 +45,15 @@ async function loadTickets() {
 
 async function refreshTickets() {
   $("tkErr").textContent = "";
-  if (TK.view === "inbox" && TK.projectId == null) {
+  if (TK.view === "inbox" && TK.projectId == null && TK.categoryId == null) {
     try { const [items, counts] = await Promise.all([api("helpdesk/inbox"), api("tickets/counts")]); TK.inbox = items; TK.counts = counts; }
     catch (e) { $("tkErr").textContent = e.message; TK.inbox = []; }
     setTicketBadge(TK.counts); renderTkSide(); renderInbox(); return;
   }
   const p = new URLSearchParams();
-  if (TK.projectId != null) { p.set("project_id", TK.projectId); p.set("view", "open"); } else p.set("view", TK.view);
+  if (TK.projectId != null) { p.set("project_id", TK.projectId); p.set("view", "open"); }
+  else if (TK.categoryId != null) { p.set("category_id", TK.categoryId); p.set("view", "open"); }
+  else p.set("view", TK.view);
   if (TK.q) p.set("q", TK.q);
   try {
     const [list, counts] = await Promise.all([api("tickets?" + p), api("tickets/counts")]);
@@ -72,7 +75,7 @@ async function refreshTicketBadge() {
 function renderTkSide() {
   const c = TK.counts || {}, per = c.projects || {};
   const views = ["new"].concat(isTeam() ? ["mine"] : []).concat(["open", "wait", "done"]);
-  const link = (key, label, n, warn, pre = "") => `<a data-tnav="${key}" class="${(TK.projectId == null && TK.view === key) || TK.projectId === key ? "on" : ""}">` +
+  const link = (key, label, n, warn, pre = "") => `<a data-tnav="${key}" class="${(TK.projectId == null && TK.categoryId == null && TK.view === key) || TK.projectId === key ? "on" : ""}">` +
     `${pre}${label}${n ? `<span class="n ${warn ? "warn" : ""}">${n}</span>` : ""}</a>`;
   let h = "<h4>Tickets</h4>" + views.map(v => link(v, TK_VIEWS[v], v === "done" ? 0 : c[v], v === "new" && c.new > 0,
     v === "new" ? '<span class="dot"></span>' : TK_ICON[v])).join("");
@@ -87,6 +90,12 @@ function renderTkSide() {
          (x.open ? `<span class="n ${x.urgent ? "warn" : ""}">${x.open}</span>` : "") + "</a>";
   });
   if (!TK.projects.length) h += '<div class="cust">Noch keine Projekte – unter Aufgaben anlegen.</div>';
+  if (TK.cats.length) {
+    const cc = c.categories || {};
+    h += "<h4>Kategorien</h4>" + TK.cats.map(k => `<a data-tnav="c${k.id}" class="${TK.categoryId === k.id ? "on" : ""}"><span class="sq" style="background:${esc(k.color)};border-radius:50%"></span>${esc(k.name)}` +
+      (cc[String(k.id)] ? `<span class="n">${cc[String(k.id)]}</span>` : "") + "</a>").join("") +
+      `<a data-tnav="c0" class="${TK.categoryId === 0 ? "on" : ""}"><span class="sq" style="border:1px dashed var(--muted);border-radius:50%"></span>ohne Kategorie${cc["0"] ? `<span class="n">${cc["0"]}</span>` : ""}</a>`;
+  }
   $("tkSide").innerHTML = h;
   $$("#tkSide [data-tnav]").forEach(a => a.onclick = () => tkNav(a.dataset.tnav));
   $("tkViewSel").innerHTML = (tkBoss() && (c.inbox || TK.imapOn) ? `<option value="inbox" ${TK.view === "inbox" && TK.projectId == null ? "selected" : ""}>📥 Unzugeordnet${c.inbox ? " (" + c.inbox + ")" : ""}</option>` : "") + views.map(v => `<option value="${v}" ${TK.projectId == null && TK.view === v ? "selected" : ""}>${TK_VIEWS[v]}${c[v] && v !== "done" ? " (" + c[v] + ")" : ""}</option>`).join("") +
@@ -94,7 +103,9 @@ function renderTkSide() {
 }
 
 function tkNav(key) {
+  TK.categoryId = null;
   if (/^\d+$/.test(String(key))) { TK.projectId = Number(key); store.set("tkView", "p:" + key); }
+  else if (/^c\d+$/.test(String(key))) { TK.projectId = null; TK.categoryId = Number(String(key).slice(1)); }
   else { TK.projectId = null; TK.view = key; store.set("tkView", key); }
   refreshTickets();
 }
@@ -106,7 +117,7 @@ function tkRow(t) {
     ? `<button class="play ${t.running ? "run" : ""}" data-tplay="${t.id}" title="${t.running ? "Stoppuhr anhalten" : "Stoppuhr starten"}">${t.running ? "■" : "▶"}</button>` : "";
   return `<div class="ticket ${t.unread ? "unread" : ""} ${t.running ? "isrun" : ""}">
     <div class="body" data-topen="${t.id}"><div class="t">${esc(t.title)}</div>
-      <div class="meta"><span class="tnr">${esc(t.number)}</span>${prio}<span class="ptag"><i style="background:${esc(t.project_color)}"></i>${esc(t.project)}</span>
+      <div class="meta"><span class="tnr">${esc(t.number)}</span>${prio}${t.category ? `<span class="ctag" style="--c:${esc(t.category_color)}">${esc(t.category)}</span>` : ""}<span class="ptag"><i style="background:${esc(t.project_color)}"></i>${esc(t.project)}</span>
         ${t.requester_name ? `<span>${esc(t.requester_name)}</span>` : ""}<span>${TK_SRC[t.source] || ""}</span>
         ${t.files ? `<span>📎 ${t.files}</span>` : ""}${isTeam() && t.assignee && TK.view !== "mine" ? `<span>→ ${esc(t.assignee)}</span>` : ""}
         <span>${t.status === "done" ? "erledigt " + tkAge(t.done_at) : tkAge(t.created_at)}</span></div></div>
@@ -116,7 +127,8 @@ function tkRow(t) {
 
 function renderTkList() {
   const pj = TK.projectId != null ? TK.projects.find(p => p.id === TK.projectId) : null;
-  $("tkTitle").innerHTML = pj ? `<span class="ptag"><i style="background:${esc(pj.color)}"></i>${esc(pj.name)}</span>` +
+  const cat = TK.categoryId != null ? (TK.cats.find(k => k.id === TK.categoryId) || { name: "ohne Kategorie", color: "transparent" }) : null;
+  $("tkTitle").innerHTML = cat ? `<span class="ctag" style="--c:${esc(cat.color)}">${esc(cat.name)}</span>` : pj ? `<span class="ptag"><i style="background:${esc(pj.color)}"></i>${esc(pj.name)}</span>` +
     (pj.customer ? ` <span class="muted small">${esc(pj.customer)}</span>` : "") : esc(TK_VIEWS[TK.view] || "Tickets");
   const list = TK.list;
   if (!list.length) {
@@ -125,7 +137,7 @@ function renderTkList() {
     return;
   }
   let h = "";
-  if (["open", "mine"].includes(TK.view) || TK.projectId != null) {
+  if (["open", "mine"].includes(TK.view) || TK.projectId != null || TK.categoryId != null) {
     for (const st of ["new", "open", "wait"]) {
       const g = list.filter(t => t.status === st);
       if (g.length) h += `<div class="group">${st === "wait" ? "Wartet auf Rückmeldung" : TK_STATUS[st]} · ${g.length}</div>` + g.map(tkRow).join("");
@@ -206,6 +218,7 @@ function showNewTicket() {
   box.innerHTML = `<div class="tform" style="display:grid;gap:10px">
     <div class="row"><label style="flex:1">Projekt <select id="ntkProject">${TK.projects.map(p => `<option value="${p.id}" ${p.id === pid ? "selected" : ""}>${esc((p.customer ? p.customer + " · " : "") + p.name)}</option>`).join("")}</select></label>
       <label>Priorität <select id="ntkPrio"><option value="3">Normal</option><option value="2">Hoch</option><option value="1">Dringend</option></select></label>
+      ${TK.cats.length ? `<label>Kategorie <select id="ntkCat"><option value="">–</option>${TK.cats.map(k => `<option value="${k.id}">${esc(k.name)}</option>`).join("")}</select></label>` : ""}
       <label class="teamOnly">Bearbeiter <select id="ntkWho">${tkPeopleOpts(state.me.id, pid, true)}</select></label></div>
     <label>Worum geht es? <input id="ntkTitle" maxlength="200" placeholder="z. B. Drucker Empfang druckt nicht"></label>
     <label>Beschreibung <textarea id="ntkBody" maxlength="20000" style="min-height:80px"></textarea></label>
@@ -223,7 +236,7 @@ function showNewTicket() {
     try {
       const t = await api("tickets", { method: "POST", body: {
         project_id: Number($("ntkProject").value), title: $("ntkTitle").value.trim(), body: $("ntkBody").value,
-        priority: Number($("ntkPrio").value), assignee_id: isTeam() ? (Number($("ntkWho").value) || null) : null,
+        priority: Number($("ntkPrio").value), category_id: $("ntkCat") && $("ntkCat").value ? Number($("ntkCat").value) : null, assignee_id: isTeam() ? (Number($("ntkWho").value) || null) : null,
         requester_name: $("ntkName").value.trim(), requester_email: $("ntkMail").value.trim(), requester_phone: $("ntkPhone").value.trim() } });
       box.classList.add("hidden");
       await openTicket(t.id);
@@ -272,8 +285,11 @@ function renderTicket() {
     <div class="row">
       <select id="tkStatus" aria-label="Status">${Object.keys(TK_STATUS).map(s => `<option value="${s}" ${s === t.status ? "selected" : ""}>${s === "wait" ? "Wartet auf Rückmeldung" : TK_STATUS[s]}</option>`).join("")}</select>
       <select id="tkPrio" aria-label="Priorität">${[1, 2, 3].map(p => `<option value="${p}" ${p === t.priority ? "selected" : ""}>Priorität: ${TK_PRIO[p]}</option>`).join("")}</select>
+      ${TK.cats.length || t.category_id ? `<select id="tkCat" aria-label="Kategorie"><option value="0">Kategorie: –</option>${TK.cats.map(k => `<option value="${k.id}" ${k.id === t.category_id ? "selected" : ""}>${esc(k.name)}</option>`).join("")}
+        ${t.category_id && !TK.cats.some(k => k.id === t.category_id) ? `<option value="${t.category_id}" selected>${esc(t.category)} (archiviert)</option>` : ""}</select>` : ""}
       ${isTeam() ? `<select id="tkWho" aria-label="Bearbeiter">${tkPeopleOpts(t.assignee_id, t.project_id, true).replace("– niemand –", "Bearbeiter: niemand")}</select>` : ""}
       ${t.status !== "done" ? '<button id="tkDoneBtn">Erledigt ✓</button>' : '<button id="tkReopen">Wieder öffnen</button>'}
+      <button id="tkPdf" title="Ticket-Bericht als PDF – z. B. als Anlage zur Rechnung">PDF</button>
       ${t.can_delete ? '<button class="danger" id="tkDel" title="Ticket mit Verlauf und Anhängen löschen">Löschen</button>' : ""}
     </div></div>`;
   const firstFilesShown = new Set();
@@ -303,6 +319,7 @@ function renderTicket() {
     <div class="pending">${TK.pending.map(f => tkFileChip(f, true)).join("")}</div>
     <div class="bar2">
       <label class="btn mini" style="cursor:pointer">📎 Datei anhängen<input type="file" id="tkFile" multiple accept="image/png,image/jpeg,application/pdf" class="hidden"></label>
+      <span class="snipwrap"><button class="mini" id="tkSnipBtn" type="button">📋 Baustein</button><div class="snipmenu hidden" id="tkSnipMenu"></div></span>
       <span class="muted small" style="margin-right:auto">${note ? "nur intern" : canReply ? "geht an " + esc(t.requester_email) + (t.mail_ready ? "" : " – <b>kein Mailserver eingerichtet</b>") : ""}</span>
       <button id="tkSend">${note ? "Notiz speichern" : "Senden"}</button>
       ${t.status !== "done" ? `<button class="primary" id="tkSendDone">${note ? "Speichern" : "Senden"} + Erledigt</button>` : ""}
@@ -354,6 +371,12 @@ function bindTicket() {
   $("tkBack").onclick = (ev) => { ev.preventDefault(); showListView(); refreshTickets(); };
   $("tkStatus").onchange = () => tkPatch({ status: $("tkStatus").value });
   $("tkPrio").onchange = () => tkPatch({ priority: Number($("tkPrio").value) });
+  if ($("tkCat")) $("tkCat").onchange = () => tkPatch({ category_id: Number($("tkCat").value) });
+  $("tkPdf").onclick = () => {
+    const notes = confirm("Interne Notizen mit in den Bericht aufnehmen?\n\nOK = mit Notizen · Abbrechen = ohne (für den Kunden)");
+    downloadFile(`api/v1/tickets/${t.id}/pdf?notes=${notes}`, `ticket_${t.number}.pdf`).catch(e => { $("tkDErr").textContent = e.message; });
+  };
+  $("tkSnipBtn").onclick = (ev) => { ev.stopPropagation(); toggleSnipMenu(); };
   if ($("tkWho")) $("tkWho").onchange = () => tkPatch({ assignee_id: Number($("tkWho").value) });
   if ($("tkDoneBtn")) $("tkDoneBtn").onclick = () => tkPatch({ status: "done" });
   if ($("tkReopen")) $("tkReopen").onclick = () => tkPatch({ status: "open" });
@@ -456,11 +479,134 @@ async function loadThumbs() {
   }
 }
 
+// ---------- Textbausteine ----------
+function fillPlaceholders(text) {
+  const t = TK.detail || {};
+  const map = { name: t.requester_name || "", nummer: t.number || "", titel: t.title || "", bearbeiter: (state.me && state.me.display_name) || "",
+                firma: (state.branding && state.branding.company_name) || "" };
+  return text.replace(/\{(name|nummer|titel|bearbeiter|firma)\}/g, (m, k) => map[k]);
+}
+async function toggleSnipMenu() {
+  const menu = $("tkSnipMenu");
+  if (!menu.classList.contains("hidden")) { menu.classList.add("hidden"); return; }
+  try { TK.snippets = await api("snippets"); } catch (e) { $("tkDErr").textContent = e.message; return; }
+  const draw = (q) => {
+    const list = TK.snippets.filter(s => !q || (s.title + " " + s.body).toLowerCase().includes(q.toLowerCase()));
+    $("tkSnipList").innerHTML = list.length ? list.map(s => `<button type="button" data-snip="${s.id}"><b>${esc(s.title)}</b>${s.shared ? "" : ' <span class="tag">meins</span>'}
+      <small>${esc(s.body.slice(0, 90))}</small></button>`).join("") :
+      `<div class="muted small" style="padding:8px">${TK.snippets.length ? "Nichts gefunden." : "Noch keine Bausteine – anlegen unter Verwaltung → Helpdesk (gemeinsam) oder Mein Zugang (eigene)."}</div>`;
+    $$("#tkSnipList [data-snip]").forEach(b => b.onclick = () => {
+      const s = TK.snippets.find(x => x.id === Number(b.dataset.snip));
+      const ta = $("tkText"), text = fillPlaceholders(s.body);
+      const pos = ta.selectionStart || ta.value.length;
+      ta.value = ta.value.slice(0, pos) + (ta.value && pos && !ta.value.slice(0, pos).endsWith("\n") ? "\n" : "") + text + ta.value.slice(pos);
+      menu.classList.add("hidden"); ta.focus();
+    });
+  };
+  menu.innerHTML = '<input id="tkSnipQ" placeholder="Baustein suchen …"><div id="tkSnipList"></div>';
+  menu.classList.remove("hidden");
+  draw("");
+  $("tkSnipQ").oninput = () => draw($("tkSnipQ").value.trim());
+  $("tkSnipQ").focus();
+}
+document.addEventListener("click", (ev) => {
+  const m = $("tkSnipMenu");
+  if (m && !m.classList.contains("hidden") && !m.contains(ev.target)) m.classList.add("hidden");
+});
+
+function snippetManager(boxId, shared) {
+  const box = $(boxId);
+  const render = async () => {
+    let list = [];
+    try { list = (await api("snippets")).filter(s => s.shared === shared); } catch (e) { box.innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+    box.innerHTML = list.map(s => `<details class="snip" data-sid="${s.id}"><summary><b>${esc(s.title)}</b> <span class="muted small">${esc(s.body.slice(0, 80))}</span></summary>
+        <div class="snipedit"><input data-st value="${esc(s.title)}" maxlength="80"><textarea data-sb maxlength="5000">${esc(s.body)}</textarea>
+        <div class="row"><button class="primary mini" data-ssave>Speichern</button><button class="mini danger" data-sdel>Löschen</button></div></div></details>`).join("") +
+      `<details class="snip"><summary>＋ Baustein anlegen</summary><div class="snipedit"><input data-st placeholder="Titel, z. B. Bitte neu starten" maxlength="80">
+        <textarea data-sb maxlength="5000" placeholder="Hallo {name},&#10;&#10;…&#10;&#10;Viele Grüße&#10;{bearbeiter}"></textarea>
+        <div class="row"><button class="primary mini" data-snew>Anlegen</button></div></div></details><div class="err" data-serr></div>`;
+    const err = box.querySelector("[data-serr]");
+    box.querySelectorAll("[data-ssave]").forEach(b => b.onclick = async () => {
+      const d = b.closest("[data-sid]");
+      try { await api("snippets/" + d.dataset.sid, { method: "PATCH", body: { title: d.querySelector("[data-st]").value.trim(), body: d.querySelector("[data-sb]").value.trim() } }); await render(); }
+      catch (e) { err.textContent = e.message; }
+    });
+    box.querySelectorAll("[data-sdel]").forEach(b => b.onclick = async () => {
+      if (!confirm("Baustein löschen?")) return;
+      try { await api("snippets/" + b.closest("[data-sid]").dataset.sid, { method: "DELETE" }); await render(); } catch (e) { err.textContent = e.message; }
+    });
+    box.querySelector("[data-snew]").onclick = async (ev) => {
+      const d = ev.target.closest(".snipedit");
+      try { await api("snippets", { method: "POST", body: { title: d.querySelector("[data-st]").value.trim(), body: d.querySelector("[data-sb]").value.trim(), shared } }); await render(); }
+      catch (e) { err.textContent = e.message; }
+    };
+  };
+  return render();
+}
+async function loadMySnippets() {
+  $("snipMineCard").classList.toggle("hidden", !modOn("helpdesk"));
+  if (modOn("helpdesk")) await snippetManager("snipMine", false);
+}
+
+// ---------- Kategorien (Verwaltung) ----------
+async function loadCategoriesAdmin() {
+  const list = await api("helpdesk/categories?include_archived=" + $("catShowArch").checked);
+  $("catTable").innerHTML = "<thead><tr><th>Name</th><th>Farbe</th><th>Reihenfolge</th><th></th></tr></thead><tbody>" + list.map(k =>
+    `<tr class="${k.archived ? "inactive" : ""}" data-cat="${k.id}"><td><input data-cn value="${esc(k.name)}" maxlength="40"></td>
+      <td><input type="color" data-cc value="${esc(k.color)}"></td><td><input type="number" data-cs class="w80" value="${k.sort}" min="0" max="999"></td>
+      <td><button class="mini" data-ca>${k.archived ? "Wiederherstellen" : "Archivieren"}</button></td></tr>`).join("") + "</tbody>";
+  $$("#catTable [data-cat]").forEach(tr => {
+    const id = tr.dataset.cat, k = list.find(x => String(x.id) === id);
+    const save = async (body) => { $("catErr").textContent = ""; try { await api("helpdesk/categories/" + id, { method: "PATCH", body }); await loadCategoriesAdmin(); } catch (e) { $("catErr").textContent = e.message; } };
+    tr.querySelector("[data-cn]").onchange = (ev) => save({ name: ev.target.value.trim() });
+    tr.querySelector("[data-cc]").onchange = (ev) => save({ color: ev.target.value });
+    tr.querySelector("[data-cs]").onchange = (ev) => save({ sort: Number(ev.target.value) });
+    tr.querySelector("[data-ca]").onclick = () => save({ archived: !k.archived });
+  });
+}
+$("catShowArch").onchange = () => loadCategoriesAdmin().catch(e => { $("catErr").textContent = e.message; });
+$("catAdd").onclick = async () => {
+  $("catErr").textContent = "";
+  try { await api("helpdesk/categories", { method: "POST", body: { name: $("catNew").value.trim(), color: $("catNewColor").value } }); $("catNew").value = ""; await loadCategoriesAdmin(); }
+  catch (e) { $("catErr").textContent = e.message; }
+};
+
+// ---------- Auswertung → Helpdesk-Kennzahlen ----------
+async function loadHdStats() {
+  const show = modOn("helpdesk") && isAdmin();
+  $("hdStatsCard").classList.toggle("hidden", !show);
+  if (!show) return;
+  const [from, to] = periodRange($("rpPeriod").value);
+  $("hdStatsErr").textContent = "";
+  let s;
+  try { s = await api(`helpdesk/stats?from=${from}&to=${to}`); } catch (e) { $("hdStatsErr").textContent = e.message; return; }
+  const dur = (m) => m == null ? "–" : m < 60 ? `${m} min` : m < 2880 ? `${Math.floor(m / 60)}:${p2(m % 60)} h` : `${(m / 1440).toFixed(1).replace(".", ",")} Tage`;
+  $("hdStatsPeriod").textContent = `${deDate(from)} – ${deDate(to)}`;
+  $("hdStatsTiles").innerHTML = [["Neu", s.created], ["Erledigt", s.done], ["Offen (heute)", s.open_now], ["Ø Reaktion", dur(s.avg_response)],
+    ["Ø Lösung", dur(s.avg_solution)], ["Ø Zeit pro Ticket", s.avg_minutes == null ? "–" : hmStr(s.avg_minutes) + " h"]]
+    .map(([k, v]) => `<div class="stat"><span class="muted small">${k}</span><b>${v}</b></div>`).join("");
+  const table = (title, rows) => `<div><h3>${title}</h3><table><thead><tr><th>${title}</th><th class="num">neu</th><th class="num">erledigt</th>
+    <th class="num">Zeit</th><th class="num">Ø Reaktion</th><th class="num">Ø Lösung</th></tr></thead><tbody>${rows.length ? rows.map(r =>
+    `<tr><td class="wrap">${esc(r.label)}</td><td class="num">${r.created}</td><td class="num">${r.done}</td><td class="num">${r.minutes ? hmStr(r.minutes) : "–"}</td>
+      <td class="num">${dur(r.avg_response)}</td><td class="num">${dur(r.avg_solution)}</td></tr>`).join("") : '<tr><td colspan="6" class="muted">keine Tickets</td></tr>'}</tbody></table></div>`;
+  const max = Math.max(1, ...s.by_month.map(m => Math.max(m.created, m.done)));
+  $("hdStatsTables").innerHTML = table("Kunde / Projekt", s.by_project) + table("Kategorie", s.by_category) + table("Quelle", s.by_source) +
+    `<div><h3>Monate</h3><div class="months">${s.by_month.map(m => `<div class="mon"><div class="bars"><i style="height:${m.created * 100 / max}%" title="neu: ${m.created}"></i>
+      <i class="d" style="height:${m.done * 100 / max}%" title="erledigt: ${m.done}"></i></div><small>${esc(m.label)}</small><span>${m.created} / ${m.done}</span></div>`).join("")}</div>
+      <p class="muted small">Balken: neu · <span style="color:var(--ok)">erledigt</span></p></div>`;
+}
+$("hdStatsCsv").onclick = () => {
+  const [from, to] = periodRange($("rpPeriod").value);
+  downloadFile(`api/v1/helpdesk/stats.csv?from=${from}&to=${to}`, `helpdesk_${from}_${to}.csv`).catch(e => { $("hdStatsErr").textContent = e.message; });
+};
+
 // ---------- Verwaltung → Helpdesk ----------
 const HD = { forms: [], settings: null };
 async function loadHelpdeskAdmin() {
   const [forms, s, im] = await Promise.all([api("helpdesk/forms"), api("helpdesk/settings"), api("helpdesk/imap")]);
   HD.forms = forms.forms; HD.settings = s; fillImap(im);
+  loadCategoriesAdmin().catch(e => { $("catErr").textContent = e.message; });
+  snippetManager("snipShared", true);
   $("hdUrlWarn").classList.toggle("hidden", forms.public_url_set);
   renderHdForms(); fillHdSettings();
 }
@@ -573,3 +719,5 @@ setInterval(() => {
 window.loadTickets = loadTickets;
 window.refreshTicketBadge = refreshTicketBadge;
 window.loadHelpdeskAdmin = loadHelpdeskAdmin;
+window.loadMySnippets = loadMySnippets;
+window.loadHdStats = loadHdStats;

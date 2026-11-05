@@ -6,6 +6,7 @@ Tickets der Projekte, in denen sie Mitglied sind. Löschen und die Helpdesk-Verw
 import re
 import secrets
 import sqlite3
+from datetime import date
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
@@ -15,7 +16,7 @@ from pydantic import BaseModel, Field
 from .. import helpdesk as hd
 from .. import modules
 from ..access import get_project, project_filter, sees_all
-from .. import mailin, portal
+from .. import hdreport, mailin, portal
 from ..db import audit, get_db, get_setting, is_team, set_setting
 from ..mailer import valid_email
 from ..security import admin_user, current_user
@@ -26,10 +27,11 @@ from .times import seconds_of
 router = APIRouter(prefix="/api/v1", tags=["Helpdesk"], dependencies=[Depends(modules.require("helpdesk"))])
 
 SELECT = ("SELECT t.*, p.name AS project, p.color AS project_color, c.name AS customer, u.display_name AS assignee, "
+          "k.name AS category, k.color AS category_color, "
           "(SELECT COUNT(*) FROM ticket_files f WHERE f.ticket_id = t.id) AS files, "
           "(SELECT COUNT(*) FROM time_entries e WHERE e.ticket_id = t.id AND e.end_utc IS NULL AND e.user_id = ?) AS mine_running "
           "FROM tickets t JOIN projects p ON p.id = t.project_id LEFT JOIN customers c ON c.id = p.customer_id "
-          "LEFT JOIN users u ON u.id = t.assignee_id")
+          "LEFT JOIN users u ON u.id = t.assignee_id LEFT JOIN ticket_categories k ON k.id = t.category_id")
 
 
 def ticket_out(r, seconds: int = 0) -> dict:
@@ -44,6 +46,8 @@ def ticket_out(r, seconds: int = 0) -> dict:
         "unread": bool(r["unread"]), "files": r["files"], "running": bool(r["mine_running"]),
         "created_at": local_iso(r["created_at"]), "updated_at": local_iso(r["updated_at"]), "done_at": local_iso(r["done_at"]),
         "seconds": seconds, "minutes": round(seconds / 60),
+        "category_id": r["category_id"], "category": r["category"], "category_color": r["category_color"],
+        "first_response_at": local_iso(r["first_response_at"]),
     }
 
 
@@ -82,7 +86,8 @@ VIEWS = {
 
 @router.get("/tickets")
 def list_tickets(view: str = Query("open", description="new, mine, open, wait, done, all"),
-                 project_id: Optional[int] = None, q: str = Query("", max_length=100),
+                 project_id: Optional[int] = None, category_id: Optional[int] = Query(None, description="0 = ohne Kategorie"),
+                 q: str = Query("", max_length=100),
                  user=Depends(current_user), conn: sqlite3.Connection = Depends(get_db)):
     if view not in VIEWS:
         raise HTTPException(400, "Unbekannte Ansicht")
@@ -91,6 +96,11 @@ def list_tickets(view: str = Query("open", description="new, mine, open, wait, d
     if project_id:
         where.append("t.project_id = ?")
         wargs.append(project_id)
+    if category_id == 0:
+        where.append("t.category_id IS NULL")
+    elif category_id:
+        where.append("t.category_id = ?")
+        wargs.append(category_id)
     q = q.strip()
     if q:
         m = hd.NUMBER_RE.match(q)
@@ -117,9 +127,12 @@ def counts(user=Depends(current_user), conn: sqlite3.Connection = Depends(get_db
         f"FROM tickets t JOIN projects p ON p.id = t.project_id WHERE {cond}", [user["id"]] + args).fetchone()
     per = conn.execute(f"SELECT t.project_id, COUNT(*) AS n, SUM(t.priority = 1) AS urgent FROM tickets t JOIN projects p ON p.id = t.project_id "
                        f"WHERE t.status != 'done' AND {cond} GROUP BY t.project_id", args).fetchall()
+    cats = conn.execute(f"SELECT t.category_id, COUNT(*) AS n FROM tickets t JOIN projects p ON p.id = t.project_id "
+                        f"WHERE t.status != 'done' AND {cond} GROUP BY t.category_id", args).fetchall()
     inbox = conn.execute("SELECT COUNT(*) FROM mail_inbox WHERE status = 'open'").fetchone()[0] if user["is_admin"] or not is_team(conn) else 0
     return {**{k: r[k] or 0 for k in ("new", "mine", "open", "wait", "unread")}, "inbox": inbox,
-            "projects": {str(x["project_id"]): {"open": x["n"], "urgent": x["urgent"] or 0} for x in per}}
+            "projects": {str(x["project_id"]): {"open": x["n"], "urgent": x["urgent"] or 0} for x in per},
+            "categories": {str(x["category_id"] or 0): x["n"] for x in cats}}
 
 
 class TicketIn(BaseModel):
@@ -131,6 +144,14 @@ class TicketIn(BaseModel):
     requester_name: str = Field("", max_length=100)
     requester_email: str = Field("", max_length=200)
     requester_phone: str = Field("", max_length=50)
+    category_id: Optional[int] = None
+
+
+def _category(conn, category_id):
+    try:
+        return hd.check_category(conn, category_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 def _check_assignee(conn, assignee_id: Optional[int], project_id: int) -> None:
@@ -166,7 +187,7 @@ def create(data: TicketIn, user=Depends(current_user), conn: sqlite3.Connection 
                          source="manual", requester_name=data.requester_name.strip(), requester_email=email,
                          requester_phone=data.requester_phone.strip(),
                          assignee_id=data.assignee_id if data.assignee_id is not None else user["id"],
-                         created_by=user["id"], author_name=user["display_name"])
+                         created_by=user["id"], author_name=user["display_name"], category_id=_category(conn, data.category_id))
     audit(conn, user["id"], "ticket_created", f"ticket:{t['id']}", f"{hd.number(t['year'], t['seq'])} · {t['title']}")
     return ticket_out(_get(conn, user, t["id"]))
 
@@ -211,6 +232,7 @@ class TicketUpdate(BaseModel):
     requester_name: Optional[str] = Field(None, max_length=100)
     requester_email: Optional[str] = Field(None, max_length=200)
     requester_phone: Optional[str] = Field(None, max_length=50)
+    category_id: Optional[int] = Field(None, description="0 = keine Kategorie")
 
 
 def set_status(conn, user, row, status: str, background: Optional[BackgroundTasks]) -> None:
@@ -251,6 +273,11 @@ def update(ticket_id: int, data: TicketUpdate, background: BackgroundTasks, user
             name = conn.execute("SELECT display_name FROM users WHERE id = ?", (aid,)).fetchone() if aid else None
             hd.system_message(conn, ticket_id, f"{user['display_name']} hat das Ticket "
                               + (f"{name[0]} zugewiesen" if name else "freigegeben (kein Bearbeiter)"), user["id"])
+    if "category_id" in ch and (data.category_id or None) != row["category_id"]:
+        cid = _category(conn, data.category_id)
+        conn.execute("UPDATE tickets SET category_id = ? WHERE id = ?", (cid, ticket_id))
+        name = conn.execute("SELECT name FROM ticket_categories WHERE id = ?", (cid,)).fetchone() if cid else None
+        hd.system_message(conn, ticket_id, f"{user['display_name']} hat die Kategorie auf „{name[0] if name else 'keine'}“ gesetzt", user["id"])
     for key in ("requester_name", "requester_phone"):
         if ch.get(key) is not None:
             conn.execute(f"UPDATE tickets SET {key} = ? WHERE id = ?", (ch[key].strip(), ticket_id))
@@ -290,6 +317,7 @@ def add_message(ticket_id: int, data: MessageIn, background: BackgroundTasks, us
     cur = conn.execute("INSERT INTO ticket_messages(ticket_id, kind, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
                        (ticket_id, data.kind, user["id"], user["display_name"], data.body.strip(), now))
     mid = cur.lastrowid
+    conn.execute("UPDATE tickets SET first_response_at = ? WHERE id = ? AND first_response_at IS NULL", (now, ticket_id))
     if data.file_ids:
         ids = list(dict.fromkeys(data.file_ids))[:20]
         conn.execute(f"UPDATE ticket_files SET message_id = ? WHERE ticket_id = ? AND message_id IS NULL AND uploaded_by = ? "
@@ -686,3 +714,147 @@ def inbox_file(inbox_id: int, file_id: int, user=Depends(current_user), conn: sq
     return Response(f["data"], media_type=f["mime"], headers={
         "Content-Disposition": f'attachment; filename="{safe}"', "X-Content-Type-Options": "nosniff",
         "Content-Security-Policy": "default-src 'none'; sandbox", "Cache-Control": "private, no-store"})
+
+
+# --- Kategorien -------------------------------------------------------------------------
+
+COLOR_RE = r"^#[0-9a-fA-F]{6}$"
+
+
+def _cat_out(r) -> dict:
+    return {"id": r["id"], "name": r["name"], "color": r["color"], "sort": r["sort"], "archived": bool(r["archived"])}
+
+
+@router.get("/helpdesk/categories")
+def categories(include_archived: bool = False, user=Depends(current_user), conn: sqlite3.Connection = Depends(get_db)):
+    rows = conn.execute("SELECT * FROM ticket_categories" + ("" if include_archived else " WHERE archived = 0")
+                        + " ORDER BY archived, sort, name").fetchall()
+    return [_cat_out(r) for r in rows]
+
+
+class CategoryIn(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=40)
+    color: Optional[str] = Field(None, pattern=COLOR_RE)
+    sort: Optional[int] = Field(None, ge=0, le=999)
+    archived: Optional[bool] = None
+
+
+@router.post("/helpdesk/categories", status_code=201)
+def create_category(data: CategoryIn, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    if not data.name or not data.name.strip():
+        raise HTTPException(400, "Bitte einen Namen angeben")
+    sort = data.sort if data.sort is not None else (conn.execute("SELECT COALESCE(MAX(sort), 0) + 1 FROM ticket_categories").fetchone()[0])
+    cur = conn.execute("INSERT INTO ticket_categories(name, color, sort, created_at) VALUES (?, ?, ?, ?)",
+                       (data.name.strip(), data.color or "#64748b", sort, now_utc_str()))
+    audit(conn, admin["id"], "helpdesk_category", f"category:{cur.lastrowid}", f"angelegt: {data.name.strip()}")
+    return _cat_out(conn.execute("SELECT * FROM ticket_categories WHERE id = ?", (cur.lastrowid,)).fetchone())
+
+
+@router.patch("/helpdesk/categories/{category_id}")
+def update_category(category_id: int, data: CategoryIn, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    r = conn.execute("SELECT * FROM ticket_categories WHERE id = ?", (category_id,)).fetchone()
+    if not r:
+        raise HTTPException(404, "Kategorie nicht gefunden")
+    ch = data.model_dump(exclude_unset=True)
+    for k in ("name", "color", "sort"):
+        if ch.get(k) is not None:
+            conn.execute(f"UPDATE ticket_categories SET {k} = ? WHERE id = ?", (ch[k].strip() if k == "name" else ch[k], category_id))
+    if data.archived is not None:
+        conn.execute("UPDATE ticket_categories SET archived = ? WHERE id = ?", (int(data.archived), category_id))
+    if ch:
+        audit(conn, admin["id"], "helpdesk_category", f"category:{category_id}", f"{r['name']} · {ch}")
+    return _cat_out(conn.execute("SELECT * FROM ticket_categories WHERE id = ?", (category_id,)).fetchone())
+
+
+# --- Textbausteine -------------------------------------------------------------------------
+
+def _snip_out(r, user) -> dict:
+    return {"id": r["id"], "title": r["title"], "body": r["body"], "shared": r["owner_id"] is None,
+            "can_edit": r["owner_id"] == user["id"] or (r["owner_id"] is None and bool(user["is_admin"]))}
+
+
+@router.get("/snippets")
+def snippets(user=Depends(current_user), conn: sqlite3.Connection = Depends(get_db)):
+    """Gemeinsame Bausteine und die eigenen."""
+    rows = conn.execute("SELECT * FROM text_snippets WHERE owner_id IS NULL OR owner_id = ? ORDER BY owner_id IS NOT NULL, title COLLATE NOCASE",
+                        (user["id"],)).fetchall()
+    return [_snip_out(r, user) for r in rows]
+
+
+class SnippetIn(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=80)
+    body: Optional[str] = Field(None, min_length=1, max_length=5000)
+    shared: Optional[bool] = Field(None, description="gemeinsam für alle (nur Chef) oder nur für mich")
+
+
+def _snippet(conn, user, sid: int):
+    r = conn.execute("SELECT * FROM text_snippets WHERE id = ?", (sid,)).fetchone()
+    if not r or (r["owner_id"] is not None and r["owner_id"] != user["id"]):
+        raise HTTPException(404, "Baustein nicht gefunden")
+    if r["owner_id"] is None and not user["is_admin"]:
+        raise HTTPException(403, "Gemeinsame Bausteine ändert nur der Chef")
+    return r
+
+
+@router.post("/snippets", status_code=201)
+def create_snippet(data: SnippetIn, user=Depends(current_user), conn: sqlite3.Connection = Depends(get_db)):
+    if not data.title or not data.body:
+        raise HTTPException(400, "Bitte Titel und Text angeben")
+    if data.shared and not user["is_admin"]:
+        raise HTTPException(403, "Gemeinsame Bausteine legt nur der Chef an")
+    cur = conn.execute("INSERT INTO text_snippets(title, body, owner_id, created_at) VALUES (?, ?, ?, ?)",
+                       (data.title.strip(), data.body.strip(), None if data.shared else user["id"], now_utc_str()))
+    return _snip_out(conn.execute("SELECT * FROM text_snippets WHERE id = ?", (cur.lastrowid,)).fetchone(), user)
+
+
+@router.patch("/snippets/{sid}")
+def update_snippet(sid: int, data: SnippetIn, user=Depends(current_user), conn: sqlite3.Connection = Depends(get_db)):
+    _snippet(conn, user, sid)
+    if data.title is not None:
+        conn.execute("UPDATE text_snippets SET title = ? WHERE id = ?", (data.title.strip(), sid))
+    if data.body is not None:
+        conn.execute("UPDATE text_snippets SET body = ? WHERE id = ?", (data.body.strip(), sid))
+    conn.execute("UPDATE text_snippets SET updated_at = ? WHERE id = ?", (now_utc_str(), sid))
+    return _snip_out(conn.execute("SELECT * FROM text_snippets WHERE id = ?", (sid,)).fetchone(), user)
+
+
+@router.delete("/snippets/{sid}")
+def delete_snippet(sid: int, user=Depends(current_user), conn: sqlite3.Connection = Depends(get_db)):
+    _snippet(conn, user, sid)
+    conn.execute("DELETE FROM text_snippets WHERE id = ?", (sid,))
+    return {"ok": True}
+
+
+# --- Auswertung -----------------------------------------------------------------------------
+
+@router.get("/helpdesk/stats")
+def helpdesk_stats(from_: date = Query(..., alias="from"), to: date = Query(...), admin=Depends(admin_user),
+                   conn: sqlite3.Connection = Depends(get_db)):
+    try:
+        return hdreport.stats(conn, from_, to)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.get("/helpdesk/stats.csv")
+def helpdesk_stats_csv(from_: date = Query(..., alias="from"), to: date = Query(...), admin=Depends(admin_user),
+                       conn: sqlite3.Connection = Depends(get_db)):
+    try:
+        s = hdreport.stats(conn, from_, to)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    audit(conn, admin["id"], "report_export", "helpdesk", f"Helpdesk-Kennzahlen CSV {from_:%d.%m.%Y}–{to:%d.%m.%Y}")
+    return Response(hdreport.stats_csv(s), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="helpdesk_{from_}_{to}.csv"', "Cache-Control": "no-store"})
+
+
+@router.get("/tickets/{ticket_id}/pdf")
+def ticket_pdf(ticket_id: int, notes: bool = Query(False, description="mit internen Notizen"), user=Depends(current_user),
+               conn: sqlite3.Connection = Depends(get_db)):
+    row = _get(conn, user, ticket_id)
+    from ..timereport import _logo_for
+    content = hdreport.ticket_pdf(conn, ticket_id, notes, _logo_for(conn))
+    audit(conn, user["id"], "report_export", f"ticket:{ticket_id}", f"Ticket-PDF {hd.number(row['year'], row['seq'])}"
+          + (" mit Notizen" if notes else ""))
+    return Response(content, media_type="application/pdf", headers={
+        "Content-Disposition": f'attachment; filename="{hdreport.ticket_pdf_name(row)}"', "Cache-Control": "no-store"})

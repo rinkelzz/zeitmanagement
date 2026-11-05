@@ -2,6 +2,30 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [1.0.0] – 2026-11-05
+
+### Neu
+- **Kategorien für Tickets** (eine gemeinsame Liste, Verwaltung → Helpdesk): Name, Farbe, Reihenfolge, archivieren.
+  Vorbelegt mit Drucker, Netzwerk/WLAN, E-Mail, Software, Hardware, Sonstiges. Am Ticket als Auswahl, in der Liste als
+  farbiges Schild, in der Seitenleiste als Filter (mit „ohne Kategorie“). Melder wählen im Formular und im Portal
+  optional einen „Bereich“ („Weiß ich nicht“ ist Standard).
+- **Textbausteine** für Antworten und Notizen: gemeinsame (Chef, Verwaltung → Helpdesk) und persönliche (jeder unter
+  „Mein Zugang“). Knopf „📋 Baustein“ mit Suche im Antwortfeld; Platzhalter `{name}`, `{nummer}`, `{titel}`,
+  `{bearbeiter}`, `{firma}` werden beim Einfügen ersetzt – der Text bleibt vor dem Senden änderbar.
+- **Zeit pro Ticket in der Auswertung:** neue Gruppierung „Ticket“ und Filter „Kategorie“; Ticketnummer in CSV, Excel
+  und PDF der Buchungen.
+- **Helpdesk-Kennzahlen** (Chef, Auswertung): neu, erledigt, offen, Ø Reaktionszeit (Eingang → erste Antwort/Notiz),
+  Ø Lösungszeit, Ø Zeit pro Ticket – aufgeteilt nach Kunde/Projekt, Kategorie, Quelle und Monat; als CSV.
+- **Ticket-Bericht als PDF** (Knopf „PDF“ in der Ticketansicht): Logo, Eckdaten, Verlauf mit Anhangsnamen, gebuchte Zeiten
+  mit Summe – z. B. als Anlage zur Rechnung. Interne Notizen nur auf Wunsch.
+
+### Geändert
+- Auswertungs-Export (Excel/CSV) hat eine zusätzliche Spalte „Ticket“.
+
+### Technik
+- Datenbank-Schema Version 10 (Kategorien, Textbausteine, Zeitpunkt der ersten Reaktion – bei bestehenden Tickets aus
+  dem Verlauf nachgetragen).
+
 ## [0.9.0] – 2026-11-05
 
 ### Neu
@@ -244,6 +268,7 @@ Erste Version: das Fundament. Aufgaben (0.2) und Projektzeiten (0.3) folgen.
 - Echte Client-IP hinter dem DSM-Reverse-Proxy nur von 127.0.0.1, kein SMTP-Passwort in Sicherungen,
   CSV-Export gegen Formel-Injection geschützt. Details in [SECURITY.md](SECURITY.md).
 
+[1.0.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v1.0.0
 [0.9.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.9.0
 [0.8.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.8.0
 [0.7.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.7.0

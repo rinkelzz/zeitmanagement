@@ -22,6 +22,7 @@ GROUPS = {
     "task": "Projekt → Aufgabe",
     "user": "Mitarbeiter → Projekt",
     "day": "Tag → Projekt",
+    "ticket": "Ticket",
 }
 WD = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
 
@@ -41,7 +42,8 @@ def hours_dec(minutes: int) -> str:
 BILLED = {"all": "alle", "open": "nicht abgerechnet", "billed": "abgerechnet"}
 
 
-def where_clause(conn, user, d_from: date, d_to: date, customer_id=None, project_id=None, user_id=None, billed="all"):
+def where_clause(conn, user, d_from: date, d_to: date, customer_id=None, project_id=None, user_id=None, billed="all",
+                 category_id=None):
     """Bedingungen für abgeschlossene Buchungen im Zeitraum (gemeinsam für Auswertung und Abrechnen)."""
     if d_to < d_from or (d_to - d_from).days > 1100:
         raise ReportError("Zeitraum ungültig (höchstens drei Jahre)")
@@ -62,6 +64,9 @@ def where_clause(conn, user, d_from: date, d_to: date, customer_id=None, project
     elif customer_id:
         where.append("p.customer_id = ?")
         args.append(customer_id)
+    if category_id:
+        where.append("e.ticket_id IN (SELECT id FROM tickets WHERE category_id = ?)")
+        args.append(category_id)
     if billed == "open":
         where.append("e.billed_at IS NULL")
     elif billed == "billed":
@@ -71,18 +76,19 @@ def where_clause(conn, user, d_from: date, d_to: date, customer_id=None, project
 
 def build(conn: sqlite3.Connection, user, d_from: date, d_to: date, customer_id: Optional[int] = None,
           project_id: Optional[int] = None, user_id: Optional[int] = None, group: str = "customer",
-          billed: str = "all") -> Dict:
+          billed: str = "all", category_id: Optional[int] = None) -> Dict:
     if group not in GROUPS:
         raise ReportError("Unbekannte Gruppierung")
     team = is_team(conn)
     boss = sees_all(conn, user)
     if group == "user" and not (team and boss):
         group = "customer"
-    where, args, user_id = where_clause(conn, user, d_from, d_to, customer_id, project_id, user_id, billed)
+    where, args, user_id = where_clause(conn, user, d_from, d_to, customer_id, project_id, user_id, billed, category_id)
     rows = conn.execute(
-        "SELECT e.*, p.name AS project, p.color AS project_color, c.name AS customer, t.title AS task, u.display_name AS user_name "
+        "SELECT e.*, p.name AS project, p.color AS project_color, c.name AS customer, t.title AS task, u.display_name AS user_name, "
+        "k.year AS ticket_year, k.seq AS ticket_seq, k.title AS ticket_title "
         "FROM time_entries e JOIN projects p ON p.id = e.project_id LEFT JOIN customers c ON c.id = p.customer_id "
-        "LEFT JOIN tasks t ON t.id = e.task_id JOIN users u ON u.id = e.user_id "
+        "LEFT JOIN tasks t ON t.id = e.task_id JOIN users u ON u.id = e.user_id LEFT JOIN tickets k ON k.id = e.ticket_id "
         f"WHERE {' AND '.join(where)} ORDER BY e.start_utc", args).fetchall()
 
     entries = []
@@ -96,15 +102,19 @@ def build(conn: sqlite3.Connection, user, d_from: date, d_to: date, customer_id:
             "project_color": r["project_color"], "task": r["task"] or "", "note": r["note"], "on_site": bool(r["on_site"]),
             "billed": bool(r["billed_at"]), "billed_day": to_local(parse_utc(r["billed_at"])).date().isoformat() if r["billed_at"] else "",
             "billed_ref": r["billed_ref"] or "",
+            "ticket": f"T-{r['ticket_year']}-{r['ticket_seq']:04d}" if r["ticket_year"] else "",
+            "ticket_title": r["ticket_title"] or "",
         })
 
     def key1(x):
         return {"customer": x["customer"], "project": x["project"], "task": x["project"],
-                "user": x["user"], "day": x["day"]}[group]
+                "user": x["user"], "day": x["day"],
+                "ticket": (x["ticket"] + " " + x["ticket_title"]) if x["ticket"] else "(ohne Ticket)"}[group]
 
     def key2(x):
         return {"customer": x["project"], "project": None, "task": x["task"] or "(ohne Aufgabe)",
-                "user": x["project"], "day": x["project"]}[group]
+                "user": x["project"], "day": x["project"],
+                "ticket": (x["customer"] + " · " if x["customer"] != "Ohne Kunde" else "") + x["project"]}[group]
 
     groups: "OrderedDict[str, Dict]" = OrderedDict()
     for x in sorted(entries, key=lambda x: (key1(x) if group == "day" else key1(x).lower(), x["day"], x["start"])):
@@ -138,6 +148,8 @@ def build(conn: sqlite3.Connection, user, d_from: date, d_to: date, customer_id:
         filters.append(f"Projekt: {(conn.execute('SELECT name FROM projects WHERE id = ?', (project_id,)).fetchone() or ['?'])[0]}")
     if billed != "all":
         filters.append(BILLED[billed].capitalize())
+    if category_id:
+        filters.append(f"Kategorie: {(conn.execute('SELECT name FROM ticket_categories WHERE id = ?', (category_id,)).fetchone() or ['?'])[0]}")
     if user_id and team:
         filters.append(f"Mitarbeiter: {(conn.execute('SELECT display_name FROM users WHERE id = ?', (user_id,)).fetchone() or ['?'])[0]}")
     return {
@@ -189,12 +201,13 @@ def to_csv(data: Dict) -> bytes:
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=";", lineterminator="\r\n")
     head = ["Datum", "Von", "Bis", "Dauer (h:mm)", "Stunden"] + (["Mitarbeiter"] if data["team"] else []) + \
-           ["Kunde", "Projekt", "Aufgabe", "Notiz", "Vor Ort", "Abgerechnet", "Vermerk"]
+           ["Kunde", "Projekt", "Aufgabe", "Ticket", "Notiz", "Vor Ort", "Abgerechnet", "Vermerk"]
     w.writerow(head)
     for x in data["entries"]:
         w.writerow(csvsafe.row([_de(x["day"]), x["start"], x["end"], hm(x["minutes"]), hours_dec(x["minutes"])] +
                                ([x["user"]] if data["team"] else []) +
-                               [x["customer"], x["project"], x["task"], x["note"], "ja" if x["on_site"] else "",
+                               [x["customer"], x["project"], x["task"], (x["ticket"] + " " + x["ticket_title"]).strip(), x["note"],
+                                "ja" if x["on_site"] else "",
                                 _de(x["billed_day"]) if x["billed"] else "", x["billed_ref"]]))
     w.writerow(csvsafe.row(["Summe", "", "", hm(data["total_minutes"]), hours_dec(data["total_minutes"])]))
     return ("﻿" + buf.getvalue()).encode("utf-8")
@@ -254,15 +267,15 @@ def to_xlsx(data: Dict, img: Optional[Dict]) -> bytes:
 
     ws2 = wb.create_sheet("Buchungen")
     head = ["Datum", "Von", "Bis", "Dauer (h:mm)", "Stunden"] + (["Mitarbeiter"] if data["team"] else []) + \
-           ["Kunde", "Projekt", "Aufgabe", "Notiz", "Vor Ort", "Abgerechnet", "Vermerk"]
+           ["Kunde", "Projekt", "Aufgabe", "Ticket", "Notiz", "Vor Ort", "Abgerechnet", "Vermerk"]
     ws2.append(head)
     for c in ws2[1]:
         c.font, c.fill = bold, head_fill
     for x in data["entries"]:
         ws2.append(csvsafe.row([date.fromisoformat(x["day"]), x["start"], x["end"], hm(x["minutes"]), round(x["minutes"] / 60, 2)] +
                                ([x["user"]] if data["team"] else []) +
-                               [x["customer"], x["project"], x["task"], x["note"], "ja" if x["on_site"] else "",
-                                date.fromisoformat(x["billed_day"]) if x["billed"] else None, x["billed_ref"]]))
+                               [x["customer"], x["project"], x["task"], (x["ticket"] + " " + x["ticket_title"]).strip(), x["note"],
+                                "ja" if x["on_site"] else "", date.fromisoformat(x["billed_day"]) if x["billed"] else None, x["billed_ref"]]))
         csvsafe.no_formulas(ws2)
         if x["billed"]:
             ws2.cell(ws2.max_row, len(head) - 1).number_format = "DD.MM.YYYY"
@@ -407,7 +420,7 @@ def to_pdf(data: Dict, img: Optional[Dict], with_entries: bool = True) -> bytes:
         y += 8
         head()
         for i, x in enumerate(data["entries"]):
-            line2 = " · ".join(p for p in (x["task"], x["note"], "vor Ort" if x["on_site"] else "",
+            line2 = " · ".join(p for p in (x["ticket"], x["task"], x["note"], "vor Ort" if x["on_site"] else "",
                                             ("abgerechnet" + (" " + x["billed_ref"] if x["billed_ref"] else "")) if x["billed"] else "") if p)
             h = 24 if line2 else 14
             if y + h > BOTTOM:

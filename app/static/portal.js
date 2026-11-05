@@ -153,6 +153,9 @@
     const pr = S.me.projects;
     $("nProjWrap").classList.toggle("hidden", pr.length < 2);
     $("nProj").innerHTML = pr.map(p => `<option value="${p.id}">${esc((p.customer ? p.customer + " · " : "") + p.name)}</option>`).join("");
+    const cats = S.me.categories || [];
+    $("nCatWrap").classList.toggle("hidden", !cats.length);
+    $("nCat").innerHTML = '<option value="">Weiß ich nicht</option>' + cats.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
     if (S.me.hint) { $("nHintText").textContent = S.me.hint; $("nHint").classList.remove("hidden"); }
     $("nErr").textContent = ""; renderFiles("n"); show("vNew"); $("nTitle").focus();
   }
@@ -162,6 +165,7 @@
     const body = { title: $("nTitle").value.trim(), body: $("nBody").value.trim(),
                    urgent: document.querySelector('input[name="nurg"]:checked').value === "1" };
     if (S.me.projects.length > 1) body.project_id = Number($("nProj").value);
+    if ($("nCat").value) body.category_id = Number($("nCat").value);
     if (!body.title || !body.body) { $("nErr").textContent = "Bitte Betreff und Beschreibung ausfüllen."; return; }
     $("nSend").disabled = true;
     try {

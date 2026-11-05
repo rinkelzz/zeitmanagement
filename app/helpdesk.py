@@ -40,7 +40,7 @@ def tag(row) -> str:
 def create_ticket(conn: sqlite3.Connection, *, project_id: int, title: str, body: str, priority: int, source: str,
                   requester_name: str = "", requester_email: str = "", requester_phone: str = "",
                   assignee_id: Optional[int] = None, created_by: Optional[int] = None,
-                  author_name: str = "", with_upload_key: bool = False) -> sqlite3.Row:
+                  author_name: str = "", with_upload_key: bool = False, category_id: Optional[int] = None) -> sqlite3.Row:
     """Legt ein Ticket samt erster Nachricht an. Die Nummer wird in einer einzigen Anweisung vergeben
     (kein Doppelvergeben, auch wenn zwei Meldungen gleichzeitig eingehen)."""
     now = now_utc_str()
@@ -54,6 +54,8 @@ def create_ticket(conn: sqlite3.Connection, *, project_id: int, title: str, body
         (year, project_id, title, priority, assignee_id, requester_name, requester_email, requester_phone, source,
          0 if created_by else 1, key, until, created_by, now, now, year))
     tid = cur.lastrowid
+    if category_id:
+        conn.execute("UPDATE tickets SET category_id = ? WHERE id = ?", (category_id, tid))
     kind = "note" if created_by and not requester_name and not requester_email else "requester"
     if body.strip():
         conn.execute("INSERT INTO ticket_messages(ticket_id, kind, author_id, author_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -74,6 +76,19 @@ def requester_reply(conn: sqlite3.Connection, t, body: str, author_name: str, vi
     if notify and mail_ready(conn) and get_setting(conn, "hd_notify_new") == "1":
         notify_staff(conn, _load(conn, t["id"]), "Antwort des Melders", body)
     return cur.lastrowid
+
+
+def active_categories(conn) -> List[Dict]:
+    return [dict(r) for r in conn.execute("SELECT id, name, color FROM ticket_categories WHERE archived = 0 ORDER BY sort, name")]
+
+
+def check_category(conn, category_id: Optional[int]) -> Optional[int]:
+    """0/None = keine Kategorie; sonst muss sie existieren und aktiv sein."""
+    if not category_id:
+        return None
+    if not conn.execute("SELECT 1 FROM ticket_categories WHERE id = ? AND archived = 0", (category_id,)).fetchone():
+        raise ValueError("Unbekannte Kategorie")
+    return category_id
 
 
 def system_message(conn: sqlite3.Connection, ticket_id: int, text: str, actor_id: Optional[int] = None) -> None:

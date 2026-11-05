@@ -81,8 +81,8 @@ def test_exports(tmp_path):
         wb = load_workbook(io.BytesIO(x))
         assert wb.sheetnames == ["Übersicht", "Buchungen"]
         ws = wb["Buchungen"]
-        notes = [ws.cell(r, 10).value for r in range(2, ws.max_row)]
-        assert "'=1+1" in notes and all(ws.cell(r, 10).data_type != "f" for r in range(2, ws.max_row + 1))
+        notes = [ws.cell(r, 11).value for r in range(2, ws.max_row)]
+        assert "'=1+1" in notes and all(ws.cell(r, 11).data_type != "f" for r in range(2, ws.max_row + 1))
         assert ws.cell(ws.max_row, 4).value == "3:15"
         assert chef.get("/api/v1/reports/times/export", params={**q, "format": "doc"}).status_code == 400
         log = chef.get("/api/v1/audit", params={"category": "zeiten"}).json()["entries"]

@@ -191,6 +191,7 @@
         <label class="teamBoss hidden">Mitarbeiter <select id="rpUser"></select></label>
         <label>Abrechnung <select id="rpBilled"><option value="all">alle</option><option value="open">nicht abgerechnet</option>
           <option value="billed">abgerechnet</option></select></label>
+        <label class="modHelpdesk hidden">Kategorie (Tickets) <select id="rpCategory"></select></label>
         <label>Gruppieren nach <select id="rpGroup"></select></label>
         <div class="exp"><button data-exp="pdf">PDF</button><button data-exp="xlsx">Excel</button><button data-exp="csv">CSV</button></div>
       </div>
@@ -206,6 +207,15 @@
         <button id="rpUnbillBtn">Abrechnung zurücknehmen …</button>
         <span class="muted small">gilt für alle Buchungen der aktuellen Auswahl – einzelne über € / ↺ bei den Einzelbuchungen</span></div>
       <p class="muted small" id="rpNote" style="margin:12px 0 0"></p>
+    </section>
+    <section class="card hidden" id="hdStatsCard">
+      <div class="toolbar"><h2>Helpdesk <span class="muted small" id="hdStatsPeriod"></span></h2>
+        <button id="hdStatsCsv">CSV</button></div>
+      <div class="stats" id="hdStatsTiles"></div>
+      <div class="hdstats" id="hdStatsTables"></div>
+      <p class="muted small" style="margin:10px 0 0">Reaktionszeit: Eingang bis zur ersten Antwort oder Notiz (ohne von Hand angelegte Tickets).
+        Lösungszeit: Eingang bis „erledigt“. Zeit pro Ticket: gebuchte Zeit der im Zeitraum eingegangenen Tickets.</p>
+      <div class="err" id="hdStatsErr"></div>
     </section>
   </div>
 
@@ -329,6 +339,20 @@
         <button class="primary" id="imSave">Speichern</button><button id="imTest">Verbindung testen</button><button id="imRun">Jetzt abrufen</button>
       </div>
       <div class="err" id="imErr"></div>
+    </section>
+    <section class="card asec" data-asec="helpdesk">
+      <div class="toolbar"><h2>Kategorien</h2><label class="inline small"><input type="checkbox" id="catShowArch"> archivierte anzeigen</label></div>
+      <p class="muted small" style="margin-top:-6px">Gilt für alle Projekte. Melder können im Formular und im Portal optional einen „Bereich“ wählen.</p>
+      <div class="scroll"><table id="catTable" class="sttable"></table></div>
+      <div class="row" style="margin-top:8px"><input id="catNew" maxlength="40" placeholder="Neue Kategorie, z. B. Theorg">
+        <input type="color" id="catNewColor" value="#0f766e"><button id="catAdd">Anlegen</button></div>
+      <div class="err" id="catErr"></div>
+    </section>
+    <section class="card asec" data-asec="helpdesk">
+      <h2>Gemeinsame Textbausteine</h2>
+      <p class="muted small" style="margin-top:-6px">Für alle im Team. Platzhalter: <code>{name}</code> Melder, <code>{nummer}</code>, <code>{titel}</code>,
+        <code>{bearbeiter}</code> wer gerade schreibt, <code>{firma}</code>. Eigene Bausteine legt jeder unter „Mein Zugang“ an.</p>
+      <div id="snipShared"></div>
     </section>
     <section class="card asec" data-asec="helpdesk">
       <h2>Einstellungen</h2>
@@ -530,6 +554,12 @@
         Account hinzufügen → Andere → Kalenderabo hinzufügen).</p>
       <div id="feedBox"></div>
       <div class="err" id="feedErr"></div>
+    </section>
+    <section class="card hidden" id="snipMineCard">
+      <h2>Meine Textbausteine</h2>
+      <p class="muted small" style="margin-top:-6px">Nur für dich, im Helpdesk unter „📋 Baustein“. Platzhalter: <code>{name}</code>, <code>{nummer}</code>,
+        <code>{titel}</code>, <code>{bearbeiter}</code>, <code>{firma}</code>.</p>
+      <div id="snipMine"></div>
     </section>
     <section class="card" id="pwCard">
       <h2>Passwort ändern</h2>

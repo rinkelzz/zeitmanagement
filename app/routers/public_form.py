@@ -12,6 +12,7 @@ Schutz:
 """
 import sqlite3
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
@@ -63,7 +64,8 @@ def form_info(token: str, conn: sqlite3.Connection = Depends(get_db)):
     return {"company": get_setting(conn, "company_name"), "customer": f["customer"], "project": f["project"],
             "hint": get_setting(conn, "hd_form_hint"), "privacy_url": get_setting(conn, "hd_privacy_url"),
             "attachments": get_setting(conn, "hd_attachments") == "1",
-            "max_files": hd.MAX_FILES, "max_mb": hd.MAX_FILE_BYTES // 1048576}
+            "max_files": hd.MAX_FILES, "max_mb": hd.MAX_FILE_BYTES // 1048576,
+            "categories": hd.active_categories(conn)}
 
 
 class ReportIn(BaseModel):
@@ -73,8 +75,16 @@ class ReportIn(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     body: str = Field(..., min_length=1, max_length=20000)
     urgent: bool = False
+    category_id: Optional[int] = Field(None, description="Bereich – optional, „weiß ich nicht“ = leer")
     privacy: bool = Field(False, description="Datenschutzhinweise gelesen (nur nötig, wenn ein Link eingestellt ist)")
     website: str = Field("", max_length=200, description="verstecktes Feld – muss leer bleiben")
+
+
+def _cat(conn, category_id):
+    try:
+        return hd.check_category(conn, category_id)
+    except ValueError:
+        return None   # veraltete Auswahl im offenen Formular: einfach ohne Kategorie
 
 
 @router.post("/api/v1/public/form/{token}", status_code=201)
@@ -96,7 +106,7 @@ def submit(token: str, data: ReportIn, request: Request, background: BackgroundT
     with_files = get_setting(conn, "hd_attachments") == "1"
     t = hd.create_ticket(conn, project_id=f["project_id"], title=data.title.strip(), body=data.body, priority=1 if data.urgent else 3,
                          source="form", requester_name=data.name.strip(), requester_email=email, requester_phone=data.phone.strip(),
-                         assignee_id=f["assignee_id"], with_upload_key=with_files)
+                         assignee_id=f["assignee_id"], with_upload_key=with_files, category_id=_cat(conn, data.category_id))
     nr = hd.number(t["year"], t["seq"])
     audit(conn, None, "ticket_created", f"ticket:{t['id']}", f"{nr} · Formular · {data.name.strip()} <{email}>")
     background.add_task(hd.mail_created, t["id"])
