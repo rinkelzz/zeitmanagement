@@ -333,3 +333,55 @@ td .hb { display: inline-block; height: 8px; border-radius: 4px; background: var
 .tag.billed { background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: transparent; color: var(--accent); font-weight: 600; }
 .billbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .budgets { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 12px; font-size: 13px; }
+
+/* ---------- Kalender ---------- */
+main:has([data-page="calendar"]:not(.hidden)) { max-width: 1320px; }
+.caltool h2 { font-size: 17px; }
+.mgrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.mhead { font-size: 12px; font-weight: 700; color: var(--muted); padding: 6px 8px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.mcell { min-height: 108px; padding: 4px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); cursor: pointer; display: grid;
+         align-content: start; gap: 2px; min-width: 0; }
+.mcell:hover { background: var(--bg); }
+.mcell.other { background: color-mix(in srgb, var(--bg) 60%, transparent); }
+.mcell.other .mday { opacity: .5; }
+.mcell.we { background: color-mix(in srgb, var(--bg) 35%, transparent); }
+.mday { font-size: 12.5px; font-weight: 600; padding: 2px 4px; }
+.mcell.today .mday span { background: var(--accent); color: var(--accent-ink); border-radius: 999px; padding: 1px 7px; }
+.cev, .ctask { font-size: 12px; line-height: 1.35; padding: 1px 6px; border-radius: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+               cursor: pointer; border-left: 3px solid var(--c, var(--accent)); background: color-mix(in srgb, var(--c, var(--accent)) 10%, transparent); }
+.cev.allday { background: var(--c); color: #fff; border-left-color: transparent; }
+.ctask { border-left: 3px dashed var(--muted); background: transparent; color: var(--muted); }
+.ctask.done, .wtask.done { text-decoration: line-through; opacity: .6; }
+.more { font-size: 11.5px; color: var(--accent); padding: 0 6px; font-weight: 600; }
+.wgrid { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.whead, .wallday, .wtimes { display: grid; }
+.whead > div { padding: 6px 8px; font-size: 13px; border-left: 1px solid var(--line); cursor: pointer; }
+.whead > div.today b { color: var(--accent); }
+.wallday { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--bg); }
+.wallday > div { min-height: 26px; padding: 2px; border-left: 1px solid var(--line); display: grid; gap: 2px; align-content: start; cursor: pointer; }
+.wallday > div:first-child { cursor: default; padding: 6px 4px; }
+.wbody { max-height: 62vh; overflow-y: auto; }
+.hours > div { font-size: 11px; color: var(--muted); text-align: right; padding: 2px 6px 0 0; box-sizing: border-box; }
+.wday { position: relative; border-left: 1px solid var(--line); cursor: copy;
+        background-image: repeating-linear-gradient(to bottom, var(--line) 0, var(--line) 1px, transparent 1px, transparent 44px); }
+.wday.today { background-color: color-mix(in srgb, var(--accent) 4%, transparent); }
+.wev { position: absolute; border-radius: 6px; padding: 2px 6px; font-size: 12px; overflow: hidden; cursor: pointer; display: grid; align-content: start;
+       background: color-mix(in srgb, var(--c, var(--accent)) 16%, var(--card)); border-left: 3px solid var(--c, var(--accent)); line-height: 1.3; }
+.wev b { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wev span { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wev.wtask { background: var(--card); border: 1px dashed var(--muted); color: var(--muted); }
+.nowline { position: absolute; left: 0; right: 0; height: 2px; background: var(--bad); pointer-events: none; }
+.nowline::before { content: ""; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--bad); }
+.modal { position: fixed; inset: 0; background: rgba(0, 0, 0, .35); z-index: 20; display: grid; place-items: start center; padding: 6vh 12px; overflow-y: auto; }
+.modalcard { width: min(640px, 100%); display: grid; gap: 10px; box-shadow: 0 20px 50px rgba(0, 0, 0, .25); }
+.evfields { border: none; padding: 0; margin: 0; display: grid; gap: 10px; min-width: 0; }
+.evfields textarea { font: inherit; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); min-height: 70px; width: 100%; }
+.feedlink { background: var(--bg); border-radius: 10px; padding: 10px 12px; display: grid; gap: 8px; }
+@media (max-width: 720px) {
+  .mcell { min-height: 64px; padding: 2px; }
+  .mcell .cev, .mcell .ctask { font-size: 10.5px; padding: 0 3px; }
+  .mcell .cev b { display: none; }
+  .caltool h2 { font-size: 15px; }
+}
+.wev.short { display: flex; gap: 6px; align-items: center; padding-top: 0; padding-bottom: 0; }
+.wev.short span { flex: none; }

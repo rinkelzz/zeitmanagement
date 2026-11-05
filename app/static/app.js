@@ -70,7 +70,7 @@ const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { ret
                 set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* egal */ } } };
 
 // ---------- Start, Anmeldung, Reiter ----------
-const TABS = ["tasks", "times", "reports", "admin", "me"];
+const TABS = ["tasks", "calendar", "times", "reports", "admin", "me"];
 function showLogin() {
   $("appView").classList.add("hidden"); $("loginView").classList.remove("hidden");
   setTimeout(() => $("lu").focus(), 0);
@@ -132,9 +132,10 @@ async function showTab(name) {
   try {
     if (name === "tasks" && window.loadTasks) await loadTasks();
     if (name === "times" && window.loadTimes) await loadTimes();
+    if (name === "calendar" && window.loadCalendar) await loadCalendar();
     if (name === "reports" && window.loadReports) await loadReports();
     if (name === "admin") { showAdminSec(store.get("asec") || "einstellungen"); await loadAdmin(); }
-    if (name === "me") loadMe();
+    if (name === "me") { loadMe(); if (window.loadFeed) loadFeed(); }
   } catch (e) { console.error(e); }
 }
 

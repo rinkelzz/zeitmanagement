@@ -29,6 +29,7 @@
     <span><span>Zeitmanagement</span><small class="brandCompany"></small></span></h1>
   <nav id="tabs">
     <button data-tab="tasks">Aufgaben</button>
+    <button data-tab="calendar">Kalender</button>
     <button data-tab="times">Zeiten</button>
     <button data-tab="reports">Auswertung</button>
     <button data-tab="admin" class="admin hidden">Verwaltung</button>
@@ -71,6 +72,24 @@
         </details>
       </section>
     </div>
+  </div>
+
+  <!-- KALENDER -->
+  <div data-page="calendar" class="page hidden">
+    <section class="card calcard">
+      <div class="toolbar caltool">
+        <div class="row"><button id="calPrev" title="zurück">‹</button><button id="calToday">Heute</button><button id="calNext" title="vor">›</button>
+          <h2 id="calTitle" style="margin:0 6px"></h2></div>
+        <div class="row">
+          <label class="inline small"><input type="checkbox" id="calTasks" checked> Aufgaben</label>
+          <div class="seg"><button data-cview="month">Monat</button><button data-cview="week">Woche</button><button data-cview="day">Tag</button></div>
+          <button class="primary" id="calNew">＋ Termin</button>
+        </div>
+      </div>
+      <div class="err" id="calErr"></div>
+      <div id="calBody"></div>
+    </section>
+    <div id="evModal" class="modal hidden" role="dialog" aria-modal="true"><div class="card modalcard" id="evForm"></div></div>
   </div>
 
   <!-- ZEITEN -->
@@ -351,6 +370,14 @@
       <h2>Design</h2>
       <div class="themes" id="themes"></div>
     </section>
+    <section class="card">
+      <h2>Kalender-Abo (iPhone, Outlook, Google)</h2>
+      <p class="muted small" style="margin-top:0">Mit einem persönlichen, geheimen Link erscheinen deine Termine – und auf Wunsch die fälligen
+        Aufgaben – im Kalender deines Handys. Die App aktualisiert das Abo etwa alle 30 Minuten (iPhone: Einstellungen → Kalender → Accounts →
+        Account hinzufügen → Andere → Kalenderabo hinzufügen).</p>
+      <div id="feedBox"></div>
+      <div class="err" id="feedErr"></div>
+    </section>
     <section class="card" id="pwCard">
       <h2>Passwort ändern</h2>
       <div class="row">
@@ -368,5 +395,6 @@
 <script src="static/app.js?v={{v}}"></script>
 <script src="static/tasks.js?v={{v}}"></script>
 <script src="static/times.js?v={{v}}"></script>
+<script src="static/calendar.js?v={{v}}"></script>
 </body>
 </html>

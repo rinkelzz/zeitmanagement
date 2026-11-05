@@ -2,6 +2,25 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.5.0] – 2026-11-05
+
+### Neu
+- **Kalender** mit Monats-, Wochen- und Tagesansicht (am Handy startet er in der Tagesansicht). Termine per Klick ins
+  Raster anlegen, mit Uhrzeit oder ganztägig, mehrtägig, mit Ort, Projekt (Farbe) und Notiz; überlappende Termine
+  stehen nebeneinander, eine rote Linie zeigt die aktuelle Uhrzeit.
+- **Serientermine:** täglich, werktags, wöchentlich, alle 2 Wochen, monatlich, alle 3 Monate, jährlich – optional mit
+  Enddatum. Einzelne Termine einer Serie löschen („Nur diesen Termin“) oder die ganze Serie. Uhrzeiten bleiben über
+  die Sommer-/Winterzeit hinweg gleich.
+- **Aufgaben im Kalender:** fällige Aufgaben erscheinen gestrichelt (mit Uhrzeit im Raster), abschaltbar.
+- **Teilnehmer (Team):** Termine sind für die anlegende Person, die Teilnehmer und den Chef sichtbar.
+- **Kalender-Abo (iCal) fürs Handy:** persönlicher geheimer Link unter „Mein Zugang“ – für iPhone, Outlook und Google
+  Kalender. Mit Serien (RRULE), ausgefallenen Terminen, Zeitzone, Ort, Notiz und **Erinnerung** („15 Minuten vorher“),
+  auf Wunsch mit fälligen Aufgaben. „Neuen Link erzeugen“ macht den alten sofort ungültig, „Link sperren“ beendet das Abo.
+- Änderungsprotokoll mit dem neuen Bereich „Kalender“.
+
+### Technik
+- Datenbank-Schema Version 5 (Termine, Teilnehmer, Ausnahmen, Abo-Schlüssel – nur als Hash gespeichert).
+
 ## [0.4.0] – 2026-11-05
 
 ### Neu
@@ -95,6 +114,7 @@ Erste Version: das Fundament. Aufgaben (0.2) und Projektzeiten (0.3) folgen.
 - Echte Client-IP hinter dem DSM-Reverse-Proxy nur von 127.0.0.1, kein SMTP-Passwort in Sicherungen,
   CSV-Export gegen Formel-Injection geschützt. Details in [SECURITY.md](SECURITY.md).
 
+[0.5.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.5.0
 [0.4.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.4.0
 [0.3.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.3.0
 [0.2.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.2.0

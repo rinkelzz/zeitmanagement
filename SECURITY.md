@@ -26,6 +26,8 @@ Unterstützt wird jeweils die neueste Version unter [Releases](https://github.co
   `VACUUM`, damit es auch nicht in freien Seiten der Datei steht).
 - **CSV/Excel-Exporte** entschärfen Zellen, die mit `=`, `+`, `-`, `@`, Tab oder CR beginnen (Formel-Injection).
 - **Paketquelle** (`/spk`) nur aus dem lokalen Netz erreichbar.
+- **Kalender-Abo:** Der Link enthält einen zufälligen 256-Bit-Schlüssel, gespeichert wird nur sein SHA-256-Hash. Der Link
+  gibt nur die Termine und Aufgaben dieser Person heraus, nur lesend. Neu erzeugen oder sperren macht ihn sofort ungültig.
 
 ## Hinweise für den Betrieb
 

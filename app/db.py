@@ -184,12 +184,58 @@ CREATE INDEX IF NOT EXISTS idx_task_items_task ON task_items(task_id, sort);
     conn.execute("CREATE INDEX IF NOT EXISTS idx_time_billed ON time_entries(billed_at)")
 
 
+def _m5_kalender(conn: sqlite3.Connection) -> None:
+    """Version 0.5: Kalender mit Terminen, Serien, Teilnehmern und iCal-Abo."""
+    _run(conn, """
+CREATE TABLE IF NOT EXISTS events (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    title         TEXT NOT NULL,
+    start_utc     TEXT NOT NULL,
+    end_utc       TEXT NOT NULL,
+    all_day       INTEGER NOT NULL DEFAULT 0,
+    location      TEXT NOT NULL DEFAULT '',
+    notes         TEXT NOT NULL DEFAULT '',
+    project_id    INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+    recur         TEXT,                          -- wie bei Aufgaben: d:1, wd, w:1, m:1@15, y:1
+    recur_until   TEXT,                          -- letztes Datum der Serie (lokal), NULL = endlos
+    alarm_minutes INTEGER,                       -- Erinnerung im Kalender des Handys (Minuten vorher)
+    created_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT,
+    uid           TEXT NOT NULL                  -- fest für iCal
+);
+CREATE INDEX IF NOT EXISTS idx_events_start ON events(start_utc);
+
+CREATE TABLE IF NOT EXISTS event_attendees (
+    event_id  INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (event_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_event_att_user ON event_attendees(user_id);
+
+CREATE TABLE IF NOT EXISTS event_exceptions (
+    event_id  INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    day       TEXT NOT NULL,                     -- dieser Termin der Serie fällt aus (lokales Datum)
+    PRIMARY KEY (event_id, day)
+);
+
+CREATE TABLE IF NOT EXISTS calendar_tokens (
+    user_id        INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    token_hash     TEXT NOT NULL UNIQUE,
+    with_tasks     INTEGER NOT NULL DEFAULT 1,
+    created_at     TEXT NOT NULL,
+    last_used_at   TEXT
+);
+""")
+
+
 # Version → Schritt. Nur anhängen, nie ändern!
 MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     1: _m1_basis,
     2: _m2_aufgaben,
     3: _m3_zeiten,
     4: _m4_komfort,
+    5: _m5_kalender,
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 

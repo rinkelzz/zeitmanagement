@@ -10,8 +10,8 @@ Aufgaben, Projektzeiten, Kalender und Dienstplan für kleine Firmen, Praxen und 
 auf der eigenen Synology NAS, mit eigenem Fenster in DSM. Wer in DSM angemeldet ist, ist es auch hier.
 Die Daten bleiben im Haus.
 
-> **Stand:** Version 0.4 – Aufgaben (mit Wiederholung, Checkliste, Erinnerung zur Uhrzeit) und Projektzeiten
-> (mit Budget und Abrechnungs-Kennzeichen), Auswertung als PDF, Excel und CSV.
+> **Stand:** Version 0.5 – Aufgaben, **Kalender mit iCal-Abo fürs Handy** und Projektzeiten mit Auswertung als PDF,
+> Excel und CSV. Der Dienstplan folgt – siehe [Fahrplan](#fahrplan).
 > Kalender und Dienstplan folgen – siehe [Fahrplan](#fahrplan).
 
 ![Aufgaben](docs/screenshots/aufgaben.png)
@@ -20,6 +20,7 @@ Die Daten bleiben im Haus.
 
 - [Funktionen](#funktionen)
 - [Aufgaben](#aufgaben)
+- [Kalender und Abo fürs Handy](#kalender-und-abo-fürs-handy)
 - [Projektzeiten und Auswertung](#projektzeiten-und-auswertung)
 - [Fahrplan](#fahrplan)
 - [Installation auf der Synology](#installation-auf-der-synology)
@@ -38,6 +39,8 @@ Die Daten bleiben im Haus.
   **Erinnerung zu einer Uhrzeit** per Mail.
 - **Schnelleingabe** in einer Zeile: „Backup prüfen morgen !hoch #büro @anna“ – die App zeigt vor dem Speichern, was sie erkannt hat.
 - **Tägliche Erinnerungs-Mail** mit überfälligen und heute fälligen Aufgaben, Uhrzeit einstellbar, pro Person abschaltbar.
+- **Kalender** mit Monat, Woche und Tag, Serienterminen, Teilnehmern und Aufgaben im Kalender – und einem
+  **iCal-Abo** für iPhone, Outlook und Google Kalender.
 - **Projektzeiten** per Stoppuhr (auch direkt an der Aufgabe mit ▶) oder nachgetragen, mit Kennzeichen „vor Ort“.
   Die laufende Stoppuhr steht immer in der Kopfzeile.
 - **Auswertung** nach Kunde, Projekt, Aufgabe, Mitarbeiter oder Tag – als **PDF, Excel und CSV**, mit Firmenname und Logo.
@@ -59,6 +62,7 @@ Die Daten bleiben im Haus.
 
 | | |
 |---|---|
+| ![Kalender](docs/screenshots/kalender.png) | ![Kalender Monat](docs/screenshots/kalender-monat.png) |
 | ![Zeiten](docs/screenshots/zeiten.png) | ![Auswertung](docs/screenshots/auswertung.png) |
 | ![Projekt bearbeiten](docs/screenshots/projekt.png) | ![Einstellungen](docs/screenshots/einstellungen.png) |
 | ![Anmeldung](docs/screenshots/anmeldung.png) | ![Mein Zugang](docs/screenshots/mein-zugang.png) |
@@ -112,6 +116,26 @@ mit E-Mail-Adresse bekommt dann morgens eine Sammel-Mail mit ihren überfällige
 ihr zugewiesenen und eigene ohne Zuständige. Ist nichts fällig, kommt keine Mail. Unter **Mein Zugang** lässt sich die
 Erinnerung abschalten oder sofort testen.
 
+## Kalender und Abo fürs Handy
+
+**Termine** legst du per Klick ins Raster (Woche/Tag) oder in einen Tag (Monat) an – mit Uhrzeit oder ganztägig,
+mehrtägig, mit Ort, Projekt und Notiz. **Serien:** täglich, werktags, wöchentlich, alle 2 Wochen, monatlich, alle 3 Monate,
+jährlich, optional mit Enddatum. Einzelne Termine einer Serie lassen sich löschen („Nur diesen Termin“), Änderungen gelten
+für die ganze Serie. Uhrzeiten bleiben über die Zeitumstellung hinweg gleich.
+
+**Aufgaben mit Fälligkeit** erscheinen gestrichelt im Kalender (mit Uhrzeit im Raster, sonst in der Zeile „ganztägig“) –
+abschaltbar über „Aufgaben“.
+
+**Team:** Ein Termin ist für die Person sichtbar, die ihn angelegt hat, und für die eingetragenen **Teilnehmer**; der Chef
+sieht alle. Ändern dürfen nur die anlegende Person und der Chef.
+
+**Abo fürs Handy:** Unter **Mein Zugang → Kalender-Abo** einen persönlichen Link erzeugen und auf dem iPhone unter
+*Einstellungen → Kalender → Accounts → Account hinzufügen → Andere → Kalenderabo hinzufügen* eintragen (oder direkt
+„Auf diesem Gerät abonnieren“ tippen). Outlook und Google Kalender können denselben Link abonnieren. Im Abo stehen
+deine Termine (ab 90 Tagen zurück, Serien als echte Serien), auf Wunsch die fälligen Aufgaben und die eingestellte
+**Erinnerung** („15 Minuten vorher“), die dann das Handy auslöst. Für unterwegs braucht es die öffentliche
+https-Adresse (Reverse Proxy). Der Link ist geheim wie ein Passwort; „Neuen Link erzeugen“ macht den alten sofort ungültig.
+
 ## Projektzeiten und Auswertung
 
 **Buchen.** Zeiten gehen immer auf ein *Projekt* (Aufgabenlisten sind nur für To-dos), optional auf eine Aufgabe darin:
@@ -149,7 +173,8 @@ Der Chef sieht alles.
 | **0.2** ✅ | **Aufgaben:** Aufgabenlisten und Projekte, Fälligkeit, Priorität, Zuständige, Schnelleingabe („morgen !hoch“), tägliche Erinnerungs-Mail |
 | **0.3** ✅ | **Projektzeiten:** Kunden und Projekte, Stoppuhr oder Nachtragen, Auswertung nach Kunde/Projekt/Mitarbeiter, Export PDF/Excel/CSV |
 | **0.4** ✅ | Wiederkehrende Aufgaben, Checklisten, Erinnerung zur Uhrzeit, Projektbudget mit Warnung, „abgerechnet“ mit Sperre |
-| später | **Kalender** mit iCal-Abo fürs iPhone · **Dienstplan** mit Wochenplan als PDF |
+| **0.5** ✅ | **Kalender:** Monat/Woche/Tag, Serien, Teilnehmer, Aufgaben im Kalender, iCal-Abo fürs Handy |
+| später | **Dienstplan** mit Wochenplan als PDF |
 
 ## Installation auf der Synology
 
@@ -258,7 +283,9 @@ for DSM users. The user interface is German.
 - Project time tracking (0.3): stopwatch (also straight from a task), manual entries, “on site” flag, weekly view,
   reports by customer/project/task/employee/day with PDF, Excel and CSV export.
 - Comfort (0.4): recurring tasks, checklists, reminders at a set time, project budgets with warnings, “billed” flag that
-  locks entries. Calendar and shift planning come next.
+  locks entries.
+- Calendar (0.5): month/week/day views, recurring events, attendees, tasks shown in the calendar, and a private iCal
+  subscription link for iPhone, Outlook or Google Calendar. Shift planning comes next.
 
 Install: download the `.spk` from [Releases](https://github.com/rinkelzz/zeitmanagement/releases) →
 Package Center → Manual Install. Security notes: [SECURITY.md](SECURITY.md). License: MIT.
