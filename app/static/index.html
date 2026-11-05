@@ -64,6 +64,8 @@
             <li><b>Priorität:</b> !hoch, !mittel, !normal (oder !1, !2, !3)</li>
             <li><b>Liste/Projekt:</b> #name – ohne Leerzeichen, der Anfang reicht (#büro findet „Büro allgemein“)</li>
             <li class="teamOnly"><b>Zuständig:</b> @benutzername oder @vorname</li>
+            <li><b>Uhrzeit (Erinnerung per Mail):</b> um 14, um 14:30, 14:30, 15 uhr</li>
+            <li><b>Wiederholung:</b> täglich, werktags, wöchentlich, monatlich, jährlich, jeden montag, jede woche, alle 2 wochen, alle 3 monate</li>
             <li>Ein Wort mit \ davor bleibt im Titel: <code>Termin \morgen absagen</code></li>
           </ul>
         </details>
@@ -122,6 +124,8 @@
         <label>Kunde <select id="rpCustomer"></select></label>
         <label>Projekt <select id="rpProject"></select></label>
         <label class="teamBoss hidden">Mitarbeiter <select id="rpUser"></select></label>
+        <label>Abrechnung <select id="rpBilled"><option value="all">alle</option><option value="open">nicht abgerechnet</option>
+          <option value="billed">abgerechnet</option></select></label>
         <label>Gruppieren nach <select id="rpGroup"></select></label>
         <div class="exp"><button data-exp="pdf">PDF</button><button data-exp="xlsx">Excel</button><button data-exp="csv">CSV</button></div>
       </div>
@@ -132,6 +136,10 @@
       <div class="toolbar"><h2 id="rpTitle">Auswertung</h2>
         <div class="seg"><button data-rpview="sum" class="on">Summen</button><button data-rpview="entries">Einzelbuchungen</button></div></div>
       <div class="scroll"><table id="rpTable"></table></div>
+      <div class="budgets" id="rpBudgets"></div>
+      <div class="billbar hidden" id="rpBillBar"><button id="rpBillBtn">Offene als abgerechnet markieren …</button>
+        <button id="rpUnbillBtn">Abrechnung zurücknehmen …</button>
+        <span class="muted small">gilt für alle Buchungen der aktuellen Auswahl – einzelne über € / ↺ bei den Einzelbuchungen</span></div>
       <p class="muted small" id="rpNote" style="margin:12px 0 0"></p>
     </section>
   </div>

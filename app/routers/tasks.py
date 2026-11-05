@@ -6,11 +6,13 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from .. import quickadd
+from .. import quickadd, recur
 from ..access import check_assignees, check_target_project, get_task, project_filter, sees_all, task_filter
 from ..db import audit, get_db, is_team
 from ..security import current_user
 from ..timeutil import local_iso, now_utc_str, today_local
+
+TIME_PATTERN = r"^([01]\d|2[0-3]):[0-5]\d$"
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["Aufgaben"])
 
@@ -26,6 +28,9 @@ class TaskIn(BaseModel):
     priority: Optional[int] = Field(None, ge=1, le=3)
     project_id: Optional[int] = None
     assignee_ids: Optional[List[int]] = None
+    due_time: Optional[str] = Field(None, pattern=TIME_PATTERN, description="HH:MM – Erinnerung zu dieser Uhrzeit")
+    recur: Optional[str] = Field(None, max_length=10, description="d:1, wd, w:1, m:1, y:1 (oder :N)")
+    items: Optional[List[str]] = Field(None, max_length=100, description="Checkliste (Unteraufgaben)")
 
 
 class TaskUpdate(BaseModel):
@@ -35,6 +40,17 @@ class TaskUpdate(BaseModel):
     priority: Optional[int] = Field(None, ge=1, le=3)
     project_id: Optional[int] = None
     assignee_ids: Optional[List[int]] = None
+    done: Optional[bool] = None
+    due_time: Optional[str] = Field(None, pattern=TIME_PATTERN)
+    recur: Optional[str] = Field(None, max_length=10)
+
+
+class ItemIn(BaseModel):
+    title: str = Field(..., min_length=1, max_length=300)
+
+
+class ItemUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=300)
     done: Optional[bool] = None
 
 
@@ -51,6 +67,11 @@ def task_rows_out(conn, rows, user) -> list:
         part = ids[chunk:chunk + 500]
         for a in conn.execute(f"SELECT task_id, user_id FROM task_assignees WHERE task_id IN ({','.join('?' * len(part))})", part):
             assigned.setdefault(a[0], []).append(a[1])
+    items = {}
+    for chunk in range(0, len(ids), 500):
+        part = ids[chunk:chunk + 500]
+        for it in conn.execute(f"SELECT * FROM task_items WHERE task_id IN ({','.join('?' * len(part))}) ORDER BY sort, id", part):
+            items.setdefault(it["task_id"], []).append({"id": it["id"], "title": it["title"], "done": bool(it["done"])})
     names = _names(conn)
     boss = sees_all(conn, user)
     out = []
@@ -66,6 +87,8 @@ def task_rows_out(conn, rows, user) -> list:
             "created_at": local_iso(r["created_at"]),
             "completed_at": local_iso(r["completed_at"]), "completed_by_name": names.get(r["completed_by"]),
             "can_delete": boss or r["created_by"] == user["id"],
+            "due_time": r["due_time"], "recur": r["recur"], "recur_label": recur.label(r["recur"]),
+            "items": items.get(r["id"], []),
         })
     return out
 
@@ -166,7 +189,7 @@ def parse_text(text: str = Query(..., max_length=500), user=Depends(current_user
     r = quickadd.parse(text, today_local(), projects, users)
     names = {u["id"]: u["display_name"] for u in users}
     pname = next((p["name"] for p in projects if p["id"] == r["project_id"]), None)
-    return {**r, "project": pname, "assignees": [names.get(i) for i in r["assignee_ids"]]}
+    return {**r, "project": pname, "assignees": [names.get(i) for i in r["assignee_ids"]], "recur_label": recur.label(r["recur"])}
 
 
 @router.post("", status_code=201)
@@ -175,6 +198,7 @@ def create_task(data: TaskIn, user=Depends(current_user), conn: sqlite3.Connecti
     title = (data.title or "").strip()
     due = data.due_date.isoformat() if data.due_date else None
     prio, project_id, assignees = data.priority, data.project_id, list(data.assignee_ids or [])
+    rec, due_time = data.recur, data.due_time
     if data.text:
         projects, users = _parse_context(conn, user)
         r = quickadd.parse(data.text, today_local(), projects, users)
@@ -184,17 +208,22 @@ def create_task(data: TaskIn, user=Depends(current_user), conn: sqlite3.Connecti
         prio = r["priority"] or prio
         project_id = r["project_id"] or project_id
         assignees = r["assignee_ids"] or assignees
+        rec = r["recur"] or rec
+        due_time = r["due_time"] or due_time
     if not title:
         raise HTTPException(400, "Bitte einen Titel eingeben")
     check_target_project(conn, user, project_id)
     assignees = check_assignees(conn, assignees) if is_team(conn) else []
+    rec, due = _check_recur(rec, due, due_time)
     now = now_utc_str()
     cur = conn.execute(
-        "INSERT INTO tasks(project_id, title, notes, due_date, priority, created_by, created_at, updated_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (project_id, title[:300], data.notes or "", due, prio or 3, user["id"], now, now))
+        "INSERT INTO tasks(project_id, title, notes, due_date, priority, created_by, created_at, updated_at, due_time, recur) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (project_id, title[:300], data.notes or "", due, prio or 3, user["id"], now, now, due_time, rec))
     tid = cur.lastrowid
     conn.executemany("INSERT INTO task_assignees(task_id, user_id) VALUES (?, ?)", [(tid, a) for a in assignees])
+    conn.executemany("INSERT INTO task_items(task_id, title, sort) VALUES (?, ?, ?)",
+                     [(tid, x.strip()[:300], i) for i, x in enumerate(data.items or []) if x.strip()])
     audit(conn, user["id"], "task_created", f"task:{tid}", title[:200] + (" (Schnelleingabe)" if "text" in fields else ""))
     return load_one(conn, user, tid)
 
@@ -210,9 +239,17 @@ def update_task(task_id: int, data: TaskUpdate, user=Depends(current_user), conn
     if "notes" in changes:
         sets.append("notes = ?")
         params.append(data.notes or "")
-    if "due_date" in changes:
-        sets.append("due_date = ?")
-        params.append(data.due_date.isoformat() if data.due_date else None)
+    if "due_date" in changes or "due_time" in changes or "recur" in changes:
+        new_due = (data.due_date.isoformat() if data.due_date else None) if "due_date" in changes else t["due_date"]
+        new_time = data.due_time if "due_time" in changes else t["due_time"]
+        new_rec = data.recur if "recur" in changes else t["recur"]
+        if "recur" in changes or "due_date" in changes:
+            new_rec = new_rec.split("@")[0] if new_rec else new_rec  # Monatstag neu aus der Fälligkeit
+        new_rec, new_due = _check_recur(new_rec, new_due, new_time)
+        sets += ["due_date = ?", "due_time = ?", "recur = ?"]
+        params += [new_due, new_time, new_rec]
+        if new_due != t["due_date"] or new_time != t["due_time"]:
+            sets.append("reminded_at = NULL")  # neue Zeit → neue Erinnerung
     if changes.get("priority") is not None:
         sets.append("priority = ?")
         params.append(data.priority)
@@ -229,10 +266,88 @@ def update_task(task_id: int, data: TaskUpdate, user=Depends(current_user), conn
         conn.executemany("INSERT INTO task_assignees(task_id, user_id) VALUES (?, ?)", [(task_id, a) for a in ids])
     if sets or data.assignee_ids is not None:
         conn.execute(f"UPDATE tasks SET {', '.join(sets + ['updated_at = ?'])} WHERE id = ?", params + [now_utc_str(), task_id])
+    if data.done and not t["done"]:
+        nxt = _spawn_next(conn, user, task_id)
+        if nxt:
+            out = load_one(conn, user, task_id)
+            audit(conn, user["id"], "task_done", f"task:{task_id}", t["title"][:120] + f" – nächste am {nxt['due_date']}")
+            return {**out, "next": nxt}
     if changes:
         action = ("task_done" if data.done else "task_reopened") if set(changes) == {"done"} else "task_updated"
         audit(conn, user["id"], action, f"task:{task_id}",
               t["title"][:120] + ("" if action != "task_updated" else f" – {', '.join(sorted(changes))}"))
+    return load_one(conn, user, task_id)
+
+
+def _check_recur(rule: Optional[str], due: Optional[str], due_time: Optional[str]):
+    """Regel prüfen; Wiederholung und Uhrzeit brauchen eine Fälligkeit (Standard: heute)."""
+    if rule == "":
+        rule = None
+    if rule and not recur.valid(rule):
+        raise HTTPException(400, "Unbekannte Wiederholung (erlaubt: d:N, wd, w:N, m:N, y:N)")
+    if (rule or due_time) and not due:
+        due = today_local().isoformat()
+    if rule:
+        rule = recur.with_anchor(rule, date.fromisoformat(due)) if "@" not in rule else rule
+    return rule, due
+
+
+def _spawn_next(conn, user, task_id: int) -> Optional[dict]:
+    """Wiederkehrende Aufgabe erledigt → nächste anlegen (nur einmal)."""
+    t = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    if not t["recur"] or t["recur_next_id"] or not t["due_date"]:
+        return None
+    due = recur.next_due(date.fromisoformat(t["due_date"]), t["recur"], today_local())
+    now = now_utc_str()
+    cur = conn.execute(
+        "INSERT INTO tasks(project_id, title, notes, due_date, priority, created_by, created_at, updated_at, due_time, recur) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (t["project_id"], t["title"], t["notes"], due.isoformat(), t["priority"], t["created_by"], now, now, t["due_time"], t["recur"]))
+    nid = cur.lastrowid
+    conn.execute("INSERT INTO task_assignees(task_id, user_id) SELECT ?, user_id FROM task_assignees WHERE task_id = ?", (nid, task_id))
+    conn.execute("INSERT INTO task_items(task_id, title, sort) SELECT ?, title, sort FROM task_items WHERE task_id = ?", (nid, task_id))
+    conn.execute("UPDATE tasks SET recur_next_id = ? WHERE id = ?", (nid, task_id))
+    audit(conn, user["id"], "task_recurred", f"task:{nid}", f"{t['title'][:120]} – {recur.label(t['recur'])}, fällig {due:%d.%m.%Y}")
+    return load_one(conn, user, nid)
+
+
+# --- Checkliste (Unteraufgaben) -------------------------------------------------
+
+@router.post("/{task_id}/items", status_code=201)
+def add_item(task_id: int, data: ItemIn, user=Depends(current_user), conn: sqlite3.Connection = Depends(get_db)):
+    get_task(conn, user, task_id)
+    n = conn.execute("SELECT COUNT(*), COALESCE(MAX(sort), -1) FROM task_items WHERE task_id = ?", (task_id,)).fetchone()
+    if n[0] >= 100:
+        raise HTTPException(400, "Höchstens 100 Punkte pro Checkliste")
+    conn.execute("INSERT INTO task_items(task_id, title, sort) VALUES (?, ?, ?)", (task_id, data.title.strip(), n[1] + 1))
+    conn.execute("UPDATE tasks SET updated_at = ? WHERE id = ?", (now_utc_str(), task_id))
+    return load_one(conn, user, task_id)
+
+
+def _item(conn, task_id: int, item_id: int):
+    row = conn.execute("SELECT * FROM task_items WHERE id = ? AND task_id = ?", (item_id, task_id)).fetchone()
+    if not row:
+        raise HTTPException(404, "Punkt nicht gefunden")
+    return row
+
+
+@router.patch("/{task_id}/items/{item_id}")
+def update_item(task_id: int, item_id: int, data: ItemUpdate, user=Depends(current_user), conn: sqlite3.Connection = Depends(get_db)):
+    get_task(conn, user, task_id)
+    _item(conn, task_id, item_id)
+    if data.title:
+        conn.execute("UPDATE task_items SET title = ? WHERE id = ?", (data.title.strip(), item_id))
+    if data.done is not None:
+        conn.execute("UPDATE task_items SET done = ? WHERE id = ?", (int(data.done), item_id))
+    conn.execute("UPDATE tasks SET updated_at = ? WHERE id = ?", (now_utc_str(), task_id))
+    return load_one(conn, user, task_id)
+
+
+@router.delete("/{task_id}/items/{item_id}")
+def delete_item(task_id: int, item_id: int, user=Depends(current_user), conn: sqlite3.Connection = Depends(get_db)):
+    get_task(conn, user, task_id)
+    _item(conn, task_id, item_id)
+    conn.execute("DELETE FROM task_items WHERE id = ?", (item_id,))
     return load_one(conn, user, task_id)
 
 

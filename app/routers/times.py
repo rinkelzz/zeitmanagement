@@ -4,6 +4,7 @@
 - Jede Person hat höchstens eine laufende Stoppuhr. Wer eine neue startet, beendet die laufende automatisch.
 - Buchungen derselben Person dürfen sich nicht überschneiden.
 - Eigene Buchungen darf jeder ändern; der Chef (und im Einzelperson-Modus man selbst) alle.
+- Abgerechnete Buchungen sind gesperrt. Nur der Chef kann die Abrechnung zurücknehmen (Auswertung).
 """
 import sqlite3
 from datetime import date, datetime, timedelta
@@ -12,6 +13,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from .. import budget
 from ..access import get_project, get_task, sees_all
 from ..db import audit, get_db
 from ..security import current_user
@@ -73,6 +75,7 @@ def entry_out(r) -> dict:
         "start": local_iso(r["start_utc"]), "end": local_iso(r["end_utc"]), "running": r["end_utc"] is None,
         "day": to_local(parse_utc(r["start_utc"])).date().isoformat(),
         "seconds": s, "minutes": round(s / 60), "note": r["note"], "on_site": bool(r["on_site"]),
+        "billed": bool(r["billed_at"]), "billed_at": local_iso(r["billed_at"]), "billed_ref": r["billed_ref"],
     }
 
 
@@ -99,10 +102,14 @@ def _target(conn, user, project_id: Optional[int], task_id: Optional[int]):
     return project_id, task_id
 
 
-def _get_entry(conn, user, entry_id: int):
+def _get_entry(conn, user, entry_id: int, for_change: bool = True):
     row = _load(conn, entry_id)
     if not row or (row["user_id"] != user["id"] and not sees_all(conn, user)):
         raise HTTPException(404, "Buchung nicht gefunden")
+    if for_change and row["billed_at"]:
+        raise HTTPException(409, "Diese Zeit ist schon abgerechnet und deshalb gesperrt"
+                                 + (f" ({row['billed_ref']})" if row["billed_ref"] else "")
+                                 + ". Der Chef kann die Abrechnung in der Auswertung zurücknehmen.")
     return row
 
 
@@ -141,6 +148,7 @@ def _stop(conn, user, row, note: Optional[str] = None) -> dict:
                  (now, note, now_utc_str(), user["id"], row["id"]))
     out = entry_out(_load(conn, row["id"]))
     audit(conn, user["id"], "time_stopped", f"time:{row['id']}", f"{row['project']} · {out['minutes']} min")
+    out["budget_warning"] = budget.check(conn, row["project_id"])
     return out
 
 
@@ -223,6 +231,7 @@ def create_entry(data: EntryIn, user=Depends(current_user), conn: sqlite3.Connec
     audit(conn, user["id"], "time_added", f"time:{row['id']}",
           f"{row['project']} · {to_local(parse_utc(s)):%d.%m.%Y %H:%M}–{to_local(parse_utc(e)):%H:%M}"
           + (f" · für user:{uid}" if uid != user["id"] else ""))
+    out["budget_warning"] = budget.check(conn, project_id)
     return out
 
 
@@ -253,7 +262,10 @@ def update_entry(entry_id: int, data: EntryUpdate, user=Depends(current_user), c
         conn.execute("UPDATE time_entries SET updated_at = ?, updated_by = ? WHERE id = ?", (now_utc_str(), user["id"], entry_id))
         logged = {k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in changes.items()}
         audit(conn, user["id"], "time_updated", f"time:{entry_id}", f"{row['project']} · {logged}")
-    return entry_out(_load(conn, entry_id))
+    new = _load(conn, entry_id)
+    for pid in {row["project_id"], new["project_id"]}:
+        budget.check(conn, pid)
+    return entry_out(new)
 
 
 @router.delete("/{entry_id}")
@@ -264,4 +276,5 @@ def delete_entry(entry_id: int, user=Depends(current_user), conn: sqlite3.Connec
     audit(conn, user["id"], "time_deleted", f"time:{entry_id}",
           f"{row['project']} · {out['day'][8:10]}.{out['day'][5:7]}.{out['day'][:4]} · {out['minutes']} min"
           + (f" · von user:{row['user_id']}" if row["user_id"] != user["id"] else ""))
+    budget.check(conn, row["project_id"])
     return {"ok": True}

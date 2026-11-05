@@ -10,7 +10,8 @@ Aufgaben, Projektzeiten, Kalender und Dienstplan für kleine Firmen, Praxen und 
 auf der eigenen Synology NAS, mit eigenem Fenster in DSM. Wer in DSM angemeldet ist, ist es auch hier.
 Die Daten bleiben im Haus.
 
-> **Stand:** Version 0.3 – Aufgaben und Projektzeiten mit Auswertung als PDF, Excel und CSV.
+> **Stand:** Version 0.4 – Aufgaben (mit Wiederholung, Checkliste, Erinnerung zur Uhrzeit) und Projektzeiten
+> (mit Budget und Abrechnungs-Kennzeichen), Auswertung als PDF, Excel und CSV.
 > Kalender und Dienstplan folgen – siehe [Fahrplan](#fahrplan).
 
 ![Aufgaben](docs/screenshots/aufgaben.png)
@@ -33,11 +34,15 @@ Die Daten bleiben im Haus.
 
 - **Aufgaben** mit Fälligkeit, Priorität, Projekten und Aufgabenlisten, Notizen und (im Team) Zuständigen.
   Ansichten Heute, Überfällig, Demnächst, Meine Aufgaben, Alle offenen, Ohne Liste und Erledigt.
+- **Wiederkehrende Aufgaben** (täglich, werktags, wöchentlich, monatlich, jährlich, alle N …), **Checklisten** und
+  **Erinnerung zu einer Uhrzeit** per Mail.
 - **Schnelleingabe** in einer Zeile: „Backup prüfen morgen !hoch #büro @anna“ – die App zeigt vor dem Speichern, was sie erkannt hat.
 - **Tägliche Erinnerungs-Mail** mit überfälligen und heute fälligen Aufgaben, Uhrzeit einstellbar, pro Person abschaltbar.
 - **Projektzeiten** per Stoppuhr (auch direkt an der Aufgabe mit ▶) oder nachgetragen, mit Kennzeichen „vor Ort“.
   Die laufende Stoppuhr steht immer in der Kopfzeile.
 - **Auswertung** nach Kunde, Projekt, Aufgabe, Mitarbeiter oder Tag – als **PDF, Excel und CSV**, mit Firmenname und Logo.
+- **Projektbudget** in Stunden mit Warn-Mail bei 80 % und 100 %, **„abgerechnet“-Kennzeichen** mit Rechnungsvermerk –
+  abgerechnete Zeiten sind gesperrt.
 - **Zwei Betriebsarten**, jederzeit umschaltbar:
   - **Einzelperson** – nur du, ohne Benutzer, Rollen und Zuständige. Jeder DSM-Administrator landet in deinem Konto.
   - **Team** – Chef/Admin (darf alles) und Mitarbeiter (sehen nur ihre eigenen Projekte).
@@ -84,9 +89,23 @@ Aufgaben ohne Liste landen unter „Ohne Liste“.
 | `!hoch`, `!mittel`, `!normal` (oder `!1`, `!2`, `!3`) | Priorität |
 | `#büro` | Projekt oder Liste – ohne Leerzeichen, der Anfang reicht |
 | `@anna` | zuständig (Benutzername oder Vorname, nur im Team) |
+| `um 14`, `um 14:30`, `14:30`, `15 uhr` | Uhrzeit – Erinnerung per Mail zu dieser Zeit |
+| `täglich`, `werktags`, `wöchentlich`, `monatlich`, `jährlich` | Wiederholung |
+| `jeden montag`, `jede woche`, `alle 2 wochen`, `alle 3 monate` | Wiederholung |
 | `\morgen` | bleibt als Wort im Titel |
 
 ![Schnelleingabe](docs/screenshots/schnelleingabe.png)
+
+**Wiederholung:** Wird eine wiederkehrende Aufgabe erledigt, legt die App die nächste an – mit Priorität, Liste,
+Zuständigen und Checkliste (wieder offen). Der nächste Termin liegt immer nach heute; wer eine tägliche Aufgabe drei Tage
+zu spät abhakt, bekommt sie für morgen. Monatliche Aufgaben am 31. kommen nach einem kurzen Monat wieder am 31.
+
+**Checkliste:** Unterpunkte direkt in der Aufgabe (Bearbeiten → „Punkt hinzufügen“), der Fortschritt steht in der Liste (☑ 1/3).
+
+**Erinnerung zur Uhrzeit:** Hat eine Aufgabe eine Uhrzeit, geht zu dieser Zeit eine Mail an die Zuständigen (ohne Zuständige
+an die Person, die sie angelegt hat). Mehr als 6 Stunden verspätet (NAS war aus) wird sie übersprungen.
+
+![Aufgabe bearbeiten](docs/screenshots/aufgabe-bearbeiten.png)
 
 **Erinnerungen:** Unter **Verwaltung → Mail** den Mailserver eintragen und die Uhrzeit wählen (Standard 7 Uhr). Jede Person
 mit E-Mail-Adresse bekommt dann morgens eine Sammel-Mail mit ihren überfälligen und heute fälligen Aufgaben – im Team die
@@ -109,6 +128,14 @@ nach Kunde → Projekt, Projekt, Projekt → Aufgabe, Mitarbeiter → Projekt od
 Export als PDF (mit Logo, mehrseitig), Excel (Übersicht + Buchungen) oder CSV (Semikolon, für Excel). Gezählt werden nur
 abgeschlossene Buchungen. Ohne Stundensätze und ohne Rundung – die Stunden sind die Grundlage für deine Rechnung.
 
+**Budget.** Für ein Projekt lässt sich ein Stundenbudget eintragen (Projekt → Bearbeiten). Der Verbrauch steht im Projekt
+und in der Auswertung; bei 80 % und bei 100 % bekommt der Chef eine Mail – je Schwelle einmal.
+
+**Abrechnen.** In der Auswertung markiert der Chef alle offenen Zeiten der aktuellen Auswahl (oder einzelne Buchungen)
+als abgerechnet, optional mit Vermerk wie der Rechnungsnummer. Abgerechnete Zeiten sind gesperrt – niemand kann sie
+mehr ändern oder löschen, bis der Chef die Abrechnung zurücknimmt. Der Filter „nicht abgerechnet“ zeigt, was noch
+in Rechnung zu stellen ist; Excel und CSV enthalten Datum und Vermerk der Abrechnung.
+
 Im Team sieht ein Mitarbeiter nur seine eigenen Zeiten und kann nur auf Projekte buchen, in denen er Mitglied ist.
 Der Chef sieht alles.
 
@@ -121,7 +148,8 @@ Der Chef sieht alles.
 | **0.1** ✅ | Fundament: Anmeldung (lokal + DSM, SSO), Einzelperson/Team, Benutzer, Firma & Logo, Designs, Mail, Port, Datensicherung, Updates, Protokoll |
 | **0.2** ✅ | **Aufgaben:** Aufgabenlisten und Projekte, Fälligkeit, Priorität, Zuständige, Schnelleingabe („morgen !hoch“), tägliche Erinnerungs-Mail |
 | **0.3** ✅ | **Projektzeiten:** Kunden und Projekte, Stoppuhr oder Nachtragen, Auswertung nach Kunde/Projekt/Mitarbeiter, Export PDF/Excel/CSV |
-| später | Wiederkehrende Aufgaben, Unteraufgaben, Projektbudget · **Kalender** mit iCal-Abo fürs iPhone · **Dienstplan** mit Wochenplan als PDF |
+| **0.4** ✅ | Wiederkehrende Aufgaben, Checklisten, Erinnerung zur Uhrzeit, Projektbudget mit Warnung, „abgerechnet“ mit Sperre |
+| später | **Kalender** mit iCal-Abo fürs iPhone · **Dienstplan** mit Wochenplan als PDF |
 
 ## Installation auf der Synology
 
@@ -228,7 +256,9 @@ for DSM users. The user interface is German.
 - Tasks (0.2): projects and task lists, due dates, priorities, assignees, one-line quick add
   („Backup prüfen morgen !hoch #büro @anna“), daily reminder email.
 - Project time tracking (0.3): stopwatch (also straight from a task), manual entries, “on site” flag, weekly view,
-  reports by customer/project/task/employee/day with PDF, Excel and CSV export. Calendar and shift planning come next.
+  reports by customer/project/task/employee/day with PDF, Excel and CSV export.
+- Comfort (0.4): recurring tasks, checklists, reminders at a set time, project budgets with warnings, “billed” flag that
+  locks entries. Calendar and shift planning come next.
 
 Install: download the `.spk` from [Releases](https://github.com/rinkelzz/zeitmanagement/releases) →
 Package Center → Manual Install. Security notes: [SECURITY.md](SECURITY.md). License: MIT.

@@ -152,11 +152,44 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_time_one_running ON time_entries(user_id) 
 """)
 
 
+def _m4_komfort(conn: sqlite3.Connection) -> None:
+    """Version 0.4: Wiederholung, Uhrzeit und Checkliste an Aufgaben, Projektbudget, Abrechnungs-Kennzeichen."""
+    cols = _columns(conn, "tasks")
+    for name, ddl in (("recur", "TEXT"),                 # d:1, wd, w:2, m:1, y:1 – siehe recur.py
+                      ("recur_next_id", "INTEGER"),      # schon angelegte Folgeaufgabe
+                      ("due_time", "TEXT"),              # HH:MM – Erinnerung zu dieser Uhrzeit
+                      ("reminded_at", "TEXT")):
+        if name not in cols:
+            conn.execute(f"ALTER TABLE tasks ADD COLUMN {name} {ddl}")
+    _run(conn, """
+CREATE TABLE IF NOT EXISTS task_items (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id  INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    title    TEXT NOT NULL,
+    done     INTEGER NOT NULL DEFAULT 0,
+    sort     INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_task_items_task ON task_items(task_id, sort);
+""")
+    cols = _columns(conn, "projects")
+    if "budget_minutes" not in cols:
+        conn.execute("ALTER TABLE projects ADD COLUMN budget_minutes INTEGER")
+    if "budget_warned" not in cols:
+        conn.execute("ALTER TABLE projects ADD COLUMN budget_warned INTEGER NOT NULL DEFAULT 0")  # 0, 80 oder 100
+    cols = _columns(conn, "time_entries")
+    for name, ddl in (("billed_at", "TEXT"), ("billed_by", "INTEGER REFERENCES users(id) ON DELETE SET NULL"),
+                      ("billed_ref", "TEXT")):
+        if name not in cols:
+            conn.execute(f"ALTER TABLE time_entries ADD COLUMN {name} {ddl}")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_time_billed ON time_entries(billed_at)")
+
+
 # Version → Schritt. Nur anhängen, nie ändern!
 MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     1: _m1_basis,
     2: _m2_aufgaben,
     3: _m3_zeiten,
+    4: _m4_komfort,
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 

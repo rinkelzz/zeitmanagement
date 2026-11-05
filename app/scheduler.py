@@ -18,6 +18,8 @@ def run_once() -> None:
         from .db import connect
         conn = connect()
         try:
+            for r in reminders.run_timed(conn):
+                print(f"[zeitmanagement] Erinnerung Aufgabe {r['task_id']}: {r['status']}", flush=True)
             for r in reminders.run_due(conn):
                 state = "verschickt" if r["status"] == "sent" else r["status"] + (": " + r["error"] if r.get("error") else "")
                 print(f"[zeitmanagement] Erinnerung für Benutzer {r['user_id']}: {state}", flush=True)
@@ -51,7 +53,7 @@ def _loop(interval: float) -> None:
         _stop.wait(interval)
 
 
-def start(interval: float = 600) -> None:
+def start(interval: float = 60) -> None:
     global _thread
     if _thread and _thread.is_alive():
         return

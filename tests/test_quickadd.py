@@ -42,7 +42,7 @@ def test_common_words_stay():
 def test_priority_project_people():
     r = p("Backup prüfen morgen !hoch #praxishenze @anna")
     assert r == {"title": "Backup prüfen", "due_date": "2026-11-05", "priority": 1, "project_id": 1,
-                 "assignee_ids": [10], "unknown": []}
+                 "assignee_ids": [10], "unknown": [], "recur": None, "due_time": None}
     assert p("x !2")["priority"] == 2 and p("x !niedrig")["priority"] == 3 and p("x !super")["priority"] is None
     assert p("x #büro")["project_id"] == 2
     assert p("x #ein")["project_id"] == 4
@@ -51,3 +51,17 @@ def test_priority_project_people():
     r = p("x @max @mk @niemand")
     assert r["assignee_ids"] == [11] and r["unknown"] == ["@niemand"]
     assert parse("x @anna", MI, PROJECTS, [])["assignee_ids"] == []   # Einzelperson: keine Personen
+
+
+def test_recurrence_and_time():
+    r = p("Backup prüfen jeden montag um 9")
+    assert (r["title"], r["due_date"], r["due_time"], r["recur"]) == ("Backup prüfen", "2026-11-09", "09:00", "w:1")
+    assert p("Müll raus wöchentlich")["recur"] == "w:1" and p("Müll raus wöchentlich")["due_date"] == "2026-11-04"
+    assert p("x monatlich 30.11.")["recur"] == "m:1" and p("x monatlich 30.11.")["due_date"] == "2026-11-30"
+    assert p("x alle 3 tage")["recur"] == "d:3" and p("x alle 2 wochen")["recur"] == "w:2"
+    assert p("x werktags")["recur"] == "wd" and p("x jeden tag")["recur"] == "d:1" and p("x jedes jahr")["recur"] == "y:1"
+    r = p("Termin morgen 14:30 Uhr")
+    assert (r["title"], r["due_date"], r["due_time"]) == ("Termin", "2026-11-05", "14:30")
+    assert p("Anruf 15 uhr")["due_time"] == "15:00" and p("Anruf 15 uhr")["due_date"] == "2026-11-04"
+    r = p("um die Ecke 25:00")
+    assert r["title"] == "um die Ecke 25:00" and r["due_time"] is None and r["due_date"] is None

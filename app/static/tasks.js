@@ -8,6 +8,16 @@ const COLORS = ["#0f766e", "#2563eb", "#7c3aed", "#c2410c", "#be185d", "#4d7c0f"
 const VIEW_LABELS = { today: "☀️ Heute", overdue: "⚠️ Überfällig", upcoming: "📅 Demnächst", mine: "👤 Meine Aufgaben",
                       open: "📋 Alle offenen", inbox: "📥 Ohne Liste", done: "✓ Erledigt" };
 const WDAY = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+const RECUR_OPTS = [["", "keine"], ["d:1", "täglich"], ["wd", "werktags (Mo–Fr)"], ["w:1", "wöchentlich"], ["w:2", "alle 2 Wochen"],
+                    ["m:1", "monatlich"], ["m:3", "alle 3 Monate"], ["y:1", "jährlich"]];
+const hmT = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, "0")}`;
+function budgetBar(b) {
+  if (!b) return "";
+  const col = b.level >= 100 ? "var(--bad)" : b.level >= 80 ? "var(--warn)" : "var(--accent)";
+  return `<span class="budget" title="Budget: ${hmT(b.used_minutes)} von ${hmT(b.budget_minutes)} h gebucht">
+    <span class="bbar"><i style="width:${Math.min(100, b.percent)}%;background:${col}"></i></span>
+    <span style="color:${b.level ? col : "inherit"}">${hmT(b.used_minutes)} / ${hmT(b.budget_minutes)} h · ${b.percent} %</span></span>`;
+}
 
 function isoToday(offset = 0) { const d = new Date(); d.setDate(d.getDate() + offset); return isoDay(d); }
 function isoDay(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -97,7 +107,8 @@ function currentProject() { return T.projectId != null ? T.projects.find(p => p.
 function renderHead() {
   const p = currentProject();
   $("taskTitle").innerHTML = p ? `<span class="ptag"><i style="background:${esc(p.color)};width:12px;height:12px;border-radius:3px"></i>${esc(p.name)}</span>` +
-    (p.customer ? ` <span class="muted small">· ${esc(p.customer)}</span>` : "") + (p.kind === "list" ? ' <span class="muted small">· Aufgabenliste</span>' : "")
+    (p.customer ? ` <span class="muted small">· ${esc(p.customer)}</span>` : "") + (p.kind === "list" ? ' <span class="muted small">· Aufgabenliste</span>' : "") +
+    budgetBar(p.budget)
     : esc(VIEW_LABELS[T.view].replace(/^\S+\s/, ""));
   $("showDoneWrap").classList.toggle("hidden", !p);
   $("projEditBtn").classList.toggle("hidden", !(p && p.can_manage));
@@ -148,6 +159,10 @@ function taskRow(t) {
   const due = t.due_date ? `<span class="${g === "over" ? "over" : g === "today" ? "today" : ""}">📅 ${esc(dueLabel(t.due_date))}</span>` : "";
   const proj = t.project && t.project_id !== T.projectId ? `<span class="ptag"><i style="background:${esc(t.project_color)}"></i>${esc(t.project)}</span>` : "";
   const notes = t.notes ? '<span title="Notiz">📝</span>' : "";
+  const time = t.due_time && !t.done ? `<span title="Erinnerung zu dieser Uhrzeit">⏰ ${esc(t.due_time)}</span>` : "";
+  const rec = t.recur ? `<span title="wiederkehrend">🔁 ${esc(t.recur_label)}</span>` : "";
+  const nItems = t.items.length, nDone = t.items.filter(i => i.done).length;
+  const items = nItems ? `<span title="Checkliste" class="${nDone === nItems ? "itemsdone" : ""}">☑ ${nDone}/${nItems}</span>` : "";
   const done = t.done ? `<span>erledigt ${esc(fmtDT(t.completed_at))}${isTeam() && t.completed_by_name ? " von " + esc(t.completed_by_name) : ""}</span>` : "";
   const av = isTeam() ? t.assignee_ids.map((id, i) => `<span class="av ${avClass(id)}" title="${esc(t.assignees[i])}">${esc(initials(t.assignees[i]))}</span>`).join("") : "";
   const running = window.timerTaskId && window.timerTaskId() === t.id;
@@ -156,7 +171,7 @@ function taskRow(t) {
   return `<div class="task ${t.done ? "isdone" : ""}">
     <button class="cb ${t.done ? "done" : t.priority === 1 ? "p1" : t.priority === 2 ? "p2" : ""}" data-cb="${t.id}" title="${t.done ? "wieder öffnen" : "erledigt"}"></button>
     <div class="body" data-open="${t.id}"><div class="t">${esc(t.title)}</div>
-      <div class="meta">${due}${t.done ? "" : prioTag(t.priority)}${proj}${notes}${done}</div></div>
+      <div class="meta">${due}${time}${t.done ? "" : prioTag(t.priority)}${rec}${proj}${items}${notes}${done}</div></div>
     <div class="tright"><span>${av}</span>${play}</div></div>`;
 }
 
@@ -181,9 +196,16 @@ function taskEditor(t) {
         <option value="1" ${t.priority === 1 ? "selected" : ""}>Hoch</option>
         <option value="2" ${t.priority === 2 ? "selected" : ""}>Mittel</option>
         <option value="3" ${t.priority === 3 ? "selected" : ""}>Normal</option></select></label>
+      <label>Uhrzeit (Erinnerung) <input type="time" data-f="due_time" value="${esc(t.due_time || "")}"></label>
+      <label>Wiederholung <select data-f="recur">${RECUR_OPTS.map(([v, l]) => `<option value="${v}" ${(t.recur || "").split("@")[0] === v ? "selected" : ""}>${l}</option>`).join("") +
+        (t.recur && !RECUR_OPTS.some(([v]) => v === t.recur.split("@")[0]) ? `<option value="${esc(t.recur)}" selected>${esc(t.recur_label)}</option>` : "")}</select></label>
       <label>Projekt / Liste <select data-f="project_id">${projectOptions(t.project_id)}</select></label>
     </div>
     ${who}
+    <div><span class="muted small">Checkliste</span>
+      <div class="items">${t.items.map(i => `<div class="item"><input type="checkbox" data-item="${i.id}" ${i.done ? "checked" : ""}>
+        <span class="${i.done ? "idone" : ""}">${esc(i.title)}</span><button class="mini" data-itemdel="${i.id}" title="entfernen">✕</button></div>`).join("")}
+        <div class="item"><input data-newitem maxlength="300" placeholder="＋ Punkt hinzufügen (Enter)"></div></div></div>
     <label>Notiz <textarea data-f="notes" maxlength="10000">${esc(t.notes)}</textarea></label>
     <div class="row"><button class="primary" data-save>Speichern</button><button data-close>Schließen</button>
       ${t.can_delete ? '<button class="danger" data-del>Löschen</button>' : ""}
@@ -199,7 +221,10 @@ function bindEditor() {
   box.querySelector("[data-close]").onclick = () => { T.openEdit = null; renderTasks(); };
   box.querySelector("[data-save]").onclick = async () => {
     const body = { title: f("title").value.trim(), due_date: f("due_date").value || null, priority: Number(f("priority").value),
-                   project_id: f("project_id").value ? Number(f("project_id").value) : null, notes: f("notes").value };
+                   project_id: f("project_id").value ? Number(f("project_id").value) : null, notes: f("notes").value,
+                   due_time: f("due_time").value || null };
+    const t0 = T.tasks.find(x => x.id === id);
+    if ((f("recur").value || null) !== (t0.recur || null)) body.recur = f("recur").value || null;
     if (isTeam()) body.assignee_ids = $$("[data-who]", box).filter(c => c.checked).map(c => Number(c.dataset.who));
     try { await api(`tasks/${id}`, { method: "PATCH", body }); T.openEdit = null; await refreshTasks(); }
     catch (e) { $("taskErr").textContent = e.message; }
@@ -210,15 +235,32 @@ function bindEditor() {
     try { await api(`tasks/${id}`, { method: "DELETE" }); T.openEdit = null; await refreshTasks(); }
     catch (e) { $("taskErr").textContent = e.message; }
   };
-  f("title").focus();
+  // Checkliste: sofort speichern
+  const reload = (t) => { const i = T.tasks.findIndex(x => x.id === id); if (i >= 0) T.tasks[i] = t; renderTasks(); };
+  $$("[data-item]", box).forEach(c => c.onchange = async () => {
+    try { reload(await api(`tasks/${id}/items/${c.dataset.item}`, { method: "PATCH", body: { done: c.checked } })); }
+    catch (e) { $("taskErr").textContent = e.message; }
+  });
+  $$("[data-itemdel]", box).forEach(b => b.onclick = async () => {
+    try { reload(await api(`tasks/${id}/items/${b.dataset.itemdel}`, { method: "DELETE" })); } catch (e) { $("taskErr").textContent = e.message; }
+  });
+  const ni = box.querySelector("[data-newitem]");
+  ni.addEventListener("keydown", async (e) => {
+    if (e.key !== "Enter" || !ni.value.trim()) return;
+    try { reload(await api(`tasks/${id}/items`, { method: "POST", body: { title: ni.value.trim() } }));
+          const again = $("taskList").querySelector(".tedit [data-newitem]"); if (again) again.focus(); }
+    catch (err) { $("taskErr").textContent = err.message; }
+  });
+  if (!box.contains(document.activeElement)) f("title").focus();
 }
 
 async function toggleDone(id) {
   const t = T.tasks.find(x => x.id === id);
   if (!t) return;
   try {
-    await api(`tasks/${id}`, { method: "PATCH", body: { done: !t.done } });
+    const r = await api(`tasks/${id}`, { method: "PATCH", body: { done: !t.done } });
     await refreshTasks();
+    if (r.next) okMsg($("taskErr"), `Erledigt – nächste „${r.next.title}“ am ${dueLabel(r.next.due_date)}`);
   } catch (e) { $("taskErr").textContent = e.message; }
 }
 
@@ -242,12 +284,14 @@ async function addQuick() {
 function previewQuick() {
   clearTimeout(T.parseTimer);
   const text = $("qaText").value;
-  if (!/(!|#|@|\bheute\b|\bmorgen\b|übermorgen|\b(mo|di|mi|do|fr|sa|so\.)\b|tag|woche|\d+\.\d+\.)/i.test(text)) { $("qaPreview").innerHTML = ""; return; }
+  if (!/(!|#|@|\bheute\b|\bmorgen\b|übermorgen|\b(mo|di|mi|do|fr|sa|so\.)\b|tag|woche|\d+\.\d+\.|\d:\d\d|uhr|\bum\b|lich\b|jede|alle|werktags)/i.test(text)) { $("qaPreview").innerHTML = ""; return; }
   T.parseTimer = setTimeout(async () => {
     try {
       const r = await api("tasks/parse?text=" + encodeURIComponent(text));
       const chips = [];
       if (r.due_date) chips.push(`📅 ${esc(dueLabel(r.due_date))}`);
+      if (r.due_time) chips.push(`⏰ ${esc(r.due_time)}`);
+      if (r.recur) chips.push(`🔁 ${esc(r.recur_label)}`);
       if (r.priority === 1) chips.push("❗ Hoch"); else if (r.priority === 2) chips.push("Mittel"); else if (r.priority === 3) chips.push("Normal");
       if (r.project) chips.push(`📁 ${esc(r.project)}`);
       r.assignees.forEach(a => chips.push(`👤 ${esc(a)}`));
@@ -276,6 +320,8 @@ function openProjectForm(project, kind) {
       <label style="flex:1;min-width:200px">Name <input id="pfName" maxlength="100" value="${esc(project ? project.name : "")}"></label>
       <label id="pfCustWrap" style="min-width:200px">Kunde <select id="pfCust">${custOpts}</select></label>
       <label id="pfNewCustWrap" class="hidden">Neuer Kunde <input id="pfNewCust" maxlength="100"></label>
+      <label id="pfBudgetWrap" class="w120">Budget (Stunden) <input id="pfBudget" inputmode="decimal" placeholder="ohne"
+        value="${project && project.budget ? String(project.budget.budget_minutes / 60).replace(".", ",") : ""}"></label>
     </div>
     <div><span class="muted small">Farbe</span><div class="swatches" id="pfColors">${COLORS.map(c =>
       `<button type="button" data-color="${c}" class="${c === color ? "on" : ""}" style="background:${c}" title="${c}"></button>`).join("")}</div></div>
@@ -289,7 +335,8 @@ function openProjectForm(project, kind) {
     <div class="err" id="pfErr"></div>`;
   $("projForm").classList.remove("hidden");
   const kindNow = () => (($$('input[name="pfKind"]').find(r => r.checked) || {}).value) || kind;
-  const syncKind = () => $("pfCustWrap").classList.toggle("hidden", kindNow() !== "project");
+  const syncKind = () => { $("pfCustWrap").classList.toggle("hidden", kindNow() !== "project");
+                           $("pfBudgetWrap").classList.toggle("hidden", kindNow() !== "project" || !canProject); };
   $$('input[name="pfKind"]').forEach(r => r.onchange = syncKind); syncKind();
   $("pfCust").onchange = () => $("pfNewCustWrap").classList.toggle("hidden", $("pfCust").value !== "new");
   $$("#pfColors [data-color]").forEach(b => b.onclick = () => { $$("#pfColors button").forEach(x => x.classList.remove("on")); b.classList.add("on"); });
@@ -323,6 +370,11 @@ async function saveProject(kind) {
     }
     const body = { name: $("pfName").value.trim(), color: ($$("#pfColors button.on")[0] || {}).dataset.color || COLORS[0] };
     if (kind === "project") body.customer_id = customerId;
+    if (kind === "project" && (isAdmin() || !isTeam())) {
+      const raw = $("pfBudget").value.trim().replace(",", ".");
+      if (raw && !(Number(raw) > 0)) throw new Error("Budget bitte als Stunden angeben, z. B. 40 oder 12,5");
+      if (raw || (p && p.budget)) body.budget_minutes = raw ? Math.round(Number(raw) * 60) : null;
+    }
     const mem = $$("#projForm [data-mem]");
     if (mem.length) body.member_ids = mem.filter(c => c.checked).map(c => Number(c.dataset.mem));
     if (!body.name) throw new Error("Bitte einen Namen eingeben");

@@ -153,7 +153,7 @@ async function toggleTimer() {
   try {
     if (TM.running) {
       const r = await stopTimer($("tmNote").value.trim());
-      okMsg($("tmErr"), `Gebucht: ${r.stopped.project} – ${hmStr(r.stopped.minutes)} h`);
+      okMsg($("tmErr"), `Gebucht: ${r.stopped.project} – ${hmStr(r.stopped.minutes)} h` + budgetNote(r.stopped));
       $("tmNote").value = "";
     } else {
       const project_id = Number($("tmProject").value);
@@ -230,11 +230,15 @@ async function saveManual() {
                    note: $("tmNote").value.trim(), on_site: $("tmOnSite").checked };
     if (boss() && Number($("mnUser").value) !== state.me.id) body.user_id = Number($("mnUser").value);
     const e = await api("times", { method: "POST", body });
-    okMsg($("tmErr"), `Nachgetragen: ${e.project} – ${hmStr(e.minutes)} h`);
+    okMsg($("tmErr"), `Nachgetragen: ${e.project} – ${hmStr(e.minutes)} h` + budgetNote(e));
     $("mnFrom").value = to; $("mnTo").value = ""; $("mnDur").value = ""; $("tmNote").value = "";
     TM.weekStart = mondayOf(new Date(day + "T12:00:00"));
     await loadWeek();
   } catch (e) { $("tmErr").textContent = e.message; }
+}
+
+function budgetNote(e) {
+  return e.budget_warning === 100 ? " · ⚠ Projektbudget überschritten" : e.budget_warning === 80 ? " · ⚠ 80 % des Projektbudgets verbraucht" : "";
 }
 
 // ---------- Woche ----------
@@ -266,9 +270,9 @@ function renderWeek() {
       h += `<div class="entry ${e.running ? "running" : ""}"><span class="time">${timeOf(e.start)} – ${e.running ? "läuft" : timeOf(e.end)}</span>
         <div><span class="ptag"><i style="background:${esc(e.project_color)}"></i> <b>${esc(e.project)}</b></span>${e.customer ? ` <span class="muted small">· ${esc(e.customer)}</span>` : ""}
           ${e.task || e.note ? `<div class="note">${esc([e.task, e.note].filter(Boolean).join(" – "))}</div>` : ""}</div>
-        <span class="tagcol">${e.on_site ? '<span class="tag">vor Ort</span>' : ""}</span>
+        <span class="tagcol">${e.on_site ? '<span class="tag">vor Ort</span>' : ""}${e.billed ? ` <span class="tag billed" title="abgerechnet ${esc(fmtDT(e.billed_at))}${e.billed_ref ? " – " + esc(e.billed_ref) : ""}">🔒 abgerechnet</span>` : ""}</span>
         <span class="dur">${e.running ? hmStr(Math.floor(elapsed() / 60)) : hmStr(e.minutes)}</span>
-        <span class="acts"><button class="mini" data-eedit="${e.id}">Bearbeiten</button></span></div>`;
+        <span class="acts">${e.billed ? "" : `<button class="mini" data-eedit="${e.id}">Bearbeiten</button>`}</span></div>`;
       if (TM.openEdit === e.id) h += entryEditor(e);
     });
   });
@@ -360,6 +364,7 @@ function reportParams() {
   const [from, to] = periodRange($("rpPeriod").value);
   const p = new URLSearchParams({ from, to, group: $("rpGroup").value || "customer" });
   if ($("rpCustomer").value !== "") p.set("customer_id", $("rpCustomer").value);
+  if ($("rpBilled").value !== "all") p.set("billed", $("rpBilled").value);
   if ($("rpProject").value) p.set("project_id", $("rpProject").value);
   if (boss() && $("rpUser").value) p.set("user_id", $("rpUser").value);
   return p;
@@ -379,7 +384,8 @@ async function runReport() {
 function renderReport() {
   const d = RP.data;
   const de = (iso) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
-  $("rpStats").innerHTML = [["Gesamt", d.total + " h"], ["Kunden", d.customers], ["Projekte", d.projects], ["Buchungen", d.count]]
+  $("rpStats").innerHTML = [["Gesamt", d.total + " h"], ["davon offen", hmStr(d.open_minutes) + " h"], ["abgerechnet", hmStr(d.billed_minutes) + " h"],
+                            ["Projekte", d.projects], ["Buchungen", d.count]]
     .concat(d.show_users ? [["Personen", d.people]] : [])
     .map(([l, v]) => `<div class="stat"><span class="muted small">${l}</span><b>${v}</b></div>`).join("");
   $("rpTitle").textContent = `${de(d.from)} – ${de(d.to)} · ${RP.view === "sum" ? "nach " + d.group_label : "Einzelbuchungen"}`;
@@ -398,15 +404,42 @@ function renderReport() {
               <td><span class="hb" style="width:${cp * 0.8}%;opacity:.45"></span>${cp} %</td><td class="num">${hmStr(c.minutes)}</td></tr>`; }).join("");
       }).join("") + `</tbody><tfoot><tr><td><b>Summe</b></td>${d.show_users ? "<td></td>" : ""}<td class="num"><b>${d.count}</b></td><td></td><td class="num"><b>${d.total}</b></td></tr></tfoot>`;
   } else {
-    $("rpTable").innerHTML = `<thead><tr><th>Datum</th><th>Zeit</th>${d.team ? "<th>Mitarbeiter</th>" : ""}<th>Kunde · Projekt</th><th>Aufgabe / Notiz</th><th class="num">Dauer</th></tr></thead><tbody>` +
+    $("rpTable").innerHTML = `<thead><tr><th>Datum</th><th>Zeit</th>${d.team ? "<th>Mitarbeiter</th>" : ""}<th>Kunde · Projekt</th><th>Aufgabe / Notiz</th><th class="num">Dauer</th><th></th></tr></thead><tbody>` +
       d.entries.map(x => `<tr><td>${de(x.day)}</td><td>${x.start}–${x.end}</td>${d.team ? `<td>${esc(x.user)}</td>` : ""}
         <td><span class="ptag"><i style="background:${esc(x.project_color)}"></i>${x.customer !== "Ohne Kunde" ? esc(x.customer) + " · " : ""}${esc(x.project)}</span></td>
         <td class="wrap small">${esc([x.task, x.note].filter(Boolean).join(" – "))}${x.on_site ? ' <span class="tag">vor Ort</span>' : ""}</td>
-        <td class="num">${hmStr(x.minutes)}</td></tr>`).join("") +
-      `</tbody><tfoot><tr><td colspan="${d.team ? 5 : 4}"><b>Summe</b></td><td class="num"><b>${d.total}</b></td></tr></tfoot>`;
+        <td class="num">${hmStr(x.minutes)}</td>
+        <td class="nowrap">${x.billed ? `<span class="tag billed" title="${esc(x.billed_ref || "")}">🔒 ${x.billed_ref ? esc(x.billed_ref) : de(x.billed_day)}</span>` : ""}
+          ${d.can_bill ? `<button class="mini" data-bill1="${x.id}" data-billed="${x.billed ? 1 : 0}" title="${x.billed ? "Abrechnung zurücknehmen" : "als abgerechnet markieren"}">${x.billed ? "↺" : "€"}</button>` : ""}</td></tr>`).join("") +
+      `</tbody><tfoot><tr><td colspan="${d.team ? 5 : 4}"><b>Summe</b></td><td class="num"><b>${d.total}</b></td><td></td></tr></tfoot>`;
+    $$("#rpTable [data-bill1]").forEach(b => b.onclick = () => billing(b.dataset.billed === "1" ? "unbill" : "bill", [Number(b.dataset.bill1)]));
   }
   $("rpNote").textContent = (d.team && !boss() ? "Du siehst hier nur deine eigenen Zeiten. " : "") +
-    "Gezählt werden abgeschlossene Buchungen – eine laufende Stoppuhr erst nach dem Stoppen.";
+    "Gezählt werden abgeschlossene Buchungen – eine laufende Stoppuhr erst nach dem Stoppen. Abgerechnete Zeiten sind gegen Änderungen gesperrt.";
+  const bud = Object.entries(d.budgets || {});
+  $("rpBudgets").innerHTML = bud.length ? '<span class="muted">Budgets (gesamt):</span>' + bud.map(([name, b]) => `<span><b>${esc(name)}</b> ${budgetBar(b)}</span>`).join("") : "";
+  $("rpBillBar").classList.toggle("hidden", !d.can_bill || !d.count);
+  $("rpBillBtn").disabled = !d.open_minutes; $("rpUnbillBtn").disabled = !d.billed_minutes;
+  $("rpBillBtn").textContent = `Offene als abgerechnet markieren (${hmStr(d.open_minutes)} h) …`;
+}
+
+async function billing(action, ids) {
+  const d = RP.data;
+  let ref = "";
+  if (action === "bill") {
+    const what = ids ? "diese Buchung" : `alle offenen Buchungen der Auswahl (${hmStr(d.open_minutes)} h)`;
+    ref = prompt(`${what[0].toUpperCase() + what.slice(1)} als abgerechnet markieren.\n\nVermerk, z. B. Rechnungsnummer (optional):`, "");
+    if (ref === null) return;
+  } else if (!confirm(ids ? "Abrechnung dieser Buchung zurücknehmen?" : `Abrechnung für alle abgerechneten Buchungen der Auswahl (${hmStr(d.billed_minutes)} h) zurücknehmen?`)) return;
+  const params = Object.fromEntries(reportParams());
+  const body = { action, ref, from: params.from, to: params.to };
+  ["customer_id", "project_id", "user_id"].forEach(k => { if (params[k] !== undefined) body[k] = Number(params[k]); });
+  if (ids) body.entry_ids = ids;
+  try {
+    const r = await api("reports/times/billing", { method: "POST", body });
+    await runReport();
+    okMsg($("rpErr"), `${r.count} Buchung${r.count !== 1 ? "en" : ""} (${hmStr(r.minutes)} h) ${action === "bill" ? "als abgerechnet markiert" : "wieder offen"}.`);
+  } catch (e) { $("rpErr").textContent = e.message; }
 }
 
 // ---------- Ereignisse ----------
@@ -425,7 +458,9 @@ $("wkPrev").onclick = () => { TM.weekStart = addDays(TM.weekStart, -7); TM.openE
 $("wkNext").onclick = () => { TM.weekStart = addDays(TM.weekStart, 7); TM.openEdit = null; loadWeek().catch(e => { $("wkErr").textContent = e.message; }); };
 $("wkToday").onclick = () => { TM.weekStart = mondayOf(new Date()); TM.openEdit = null; loadWeek().catch(e => { $("wkErr").textContent = e.message; }); };
 $("wkUser").onchange = () => { TM.viewUser = Number($("wkUser").value); TM.openEdit = null; loadWeek().catch(e => { $("wkErr").textContent = e.message; }); };
-["rpPeriod", "rpFrom", "rpTo", "rpProject", "rpUser", "rpGroup"].forEach(id => $(id).onchange = runReport);
+["rpPeriod", "rpFrom", "rpTo", "rpProject", "rpUser", "rpGroup", "rpBilled"].forEach(id => $(id).onchange = runReport);
+$("rpBillBtn").onclick = () => billing("bill", null);
+$("rpUnbillBtn").onclick = () => billing("unbill", null);
 $("rpCustomer").onchange = () => { fillReportProjects(); runReport(); };
 $$("[data-rpview]").forEach(b => b.onclick = () => {
   RP.view = b.dataset.rpview; $$("[data-rpview]").forEach(x => x.classList.toggle("on", x === b)); if (RP.data) renderReport();

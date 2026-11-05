@@ -5,6 +5,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from .. import budget
 from ..access import can_manage_project, get_project, project_filter, sees_all
 from ..db import audit, get_db, is_team
 from ..security import admin_user, current_user
@@ -73,6 +74,7 @@ class ProjectIn(BaseModel):
     kind: str = Field("list", description="project (mit Kunde, später für Zeiten) oder list (Aufgabenliste)")
     name: str = Field(..., min_length=1, max_length=100)
     customer_id: Optional[int] = None
+    budget_minutes: Optional[int] = Field(None, ge=1, le=10_000_000, description="Stundenbudget in Minuten (nur Projekte)")
     color: str = Field("#0f766e", pattern=COLOR_RE)
     member_ids: Optional[List[int]] = Field(None, description="Team-Modus: wer das Projekt sieht")
 
@@ -80,6 +82,7 @@ class ProjectIn(BaseModel):
 class ProjectUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     customer_id: Optional[int] = None
+    budget_minutes: Optional[int] = Field(None, ge=1, le=10_000_000, description="null = kein Budget")
     color: Optional[str] = Field(None, pattern=COLOR_RE)
     archived: Optional[bool] = None
     member_ids: Optional[List[int]] = None
@@ -95,6 +98,7 @@ def project_out(conn, r, user) -> dict:
         "customer_id": r["customer_id"], "customer": r["customer"] if "customer" in r.keys() else None,
         "member_ids": _members(conn, r["id"]) if is_team(conn) else [],
         "can_manage": can_manage_project(conn, user, r),
+        "budget": budget.info(conn, r) if r["kind"] == "project" else None,
         "open": r["open"] if "open" in r.keys() else None,
         "overdue": r["overdue"] if "overdue" in r.keys() else None,
     }
@@ -148,9 +152,9 @@ def create_project(data: ProjectIn, user=Depends(current_user), conn: sqlite3.Co
         raise HTTPException(403, "Projekte legt der Chef an – du kannst eine Aufgabenliste anlegen.")
     _check_customer(conn, data.customer_id)
     cur = conn.execute(
-        "INSERT INTO projects(kind, name, customer_id, color, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO projects(kind, name, customer_id, color, created_by, created_at, budget_minutes) VALUES (?, ?, ?, ?, ?, ?, ?)",
         (data.kind, data.name.strip(), data.customer_id if data.kind == "project" else None, data.color.lower(),
-         user["id"], now_utc_str()))
+         user["id"], now_utc_str(), data.budget_minutes if data.kind == "project" else None))
     pid = cur.lastrowid
     members = list(data.member_ids or []) if boss else []
     if user["id"] not in members:
@@ -173,6 +177,9 @@ def update_project(project_id: int, data: ProjectUpdate, user=Depends(current_us
         conn.execute("UPDATE projects SET customer_id = ? WHERE id = ?", (data.customer_id, project_id))
     if data.color:
         conn.execute("UPDATE projects SET color = ? WHERE id = ?", (data.color.lower(), project_id))
+    if "budget_minutes" in changes and p["kind"] == "project":
+        conn.execute("UPDATE projects SET budget_minutes = ? WHERE id = ?", (data.budget_minutes, project_id))
+        budget.check(conn, project_id)
     if data.archived is not None:
         conn.execute("UPDATE projects SET archived = ? WHERE id = ?", (int(data.archived), project_id))
     if data.member_ids is not None:

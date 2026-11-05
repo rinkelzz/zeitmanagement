@@ -2,6 +2,24 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.4.0] – 2026-11-05
+
+### Neu
+- **Wiederkehrende Aufgaben:** täglich, werktags, wöchentlich, alle 2 Wochen, monatlich, alle 3 Monate, jährlich – im
+  Bearbeiten-Feld „Wiederholung“ oder per Schnelleingabe („jeden montag“, „monatlich“, „alle 2 wochen“). Beim Erledigen
+  entsteht die nächste Aufgabe mit Priorität, Liste, Zuständigen und Checkliste; der nächste Termin liegt immer nach heute.
+- **Checkliste (Unteraufgaben)** in jeder Aufgabe – abhaken, hinzufügen, entfernen; Fortschritt „☑ 1/3“ in der Liste.
+- **Erinnerung zu einer Uhrzeit:** Aufgaben mit Uhrzeit („um 14:30“) schicken zu dieser Zeit eine Mail an die Zuständigen.
+  Der Zeitplan prüft dafür jetzt jede Minute.
+- **Projektbudget** in Stunden mit Verbrauchsbalken im Projekt und in der Auswertung; Warn-Mail an den Chef bei 80 % und 100 %.
+- **„Abgerechnet“-Kennzeichen:** In der Auswertung markiert der Chef alle offenen Zeiten der Auswahl oder einzelne
+  Buchungen als abgerechnet (mit Vermerk, z. B. Rechnungsnummer) – und kann es zurücknehmen. Abgerechnete Zeiten sind
+  gegen Ändern und Löschen gesperrt. Neuer Filter „Abrechnung“ (alle / nicht abgerechnet / abgerechnet), Kennzahlen
+  „davon offen“ und „abgerechnet“, Spalten „Abgerechnet“ und „Vermerk“ in Excel und CSV.
+
+### Technik
+- Datenbank-Schema Version 4 (Wiederholung, Uhrzeit, Checkliste, Budget, Abrechnung).
+
 ## [0.3.0] – 2026-11-05
 
 ### Neu
@@ -77,6 +95,7 @@ Erste Version: das Fundament. Aufgaben (0.2) und Projektzeiten (0.3) folgen.
 - Echte Client-IP hinter dem DSM-Reverse-Proxy nur von 127.0.0.1, kein SMTP-Passwort in Sicherungen,
   CSV-Export gegen Formel-Injection geschützt. Details in [SECURITY.md](SECURITY.md).
 
+[0.4.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.4.0
 [0.3.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.3.0
 [0.2.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.2.0
 [0.1.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.1.0

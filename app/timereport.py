@@ -38,19 +38,18 @@ def hours_dec(minutes: int) -> str:
     return f"{minutes / 60:.2f}".replace(".", ",")
 
 
-def build(conn: sqlite3.Connection, user, d_from: date, d_to: date, customer_id: Optional[int] = None,
-          project_id: Optional[int] = None, user_id: Optional[int] = None, group: str = "customer") -> Dict:
+BILLED = {"all": "alle", "open": "nicht abgerechnet", "billed": "abgerechnet"}
+
+
+def where_clause(conn, user, d_from: date, d_to: date, customer_id=None, project_id=None, user_id=None, billed="all"):
+    """Bedingungen für abgeschlossene Buchungen im Zeitraum (gemeinsam für Auswertung und Abrechnen)."""
     if d_to < d_from or (d_to - d_from).days > 1100:
         raise ReportError("Zeitraum ungültig (höchstens drei Jahre)")
-    if group not in GROUPS:
-        raise ReportError("Unbekannte Gruppierung")
-    team = is_team(conn)
-    boss = sees_all(conn, user)
-    if group == "user" and not (team and boss):
-        group = "customer"
+    if billed not in BILLED:
+        raise ReportError("Abrechnungsfilter muss all, open oder billed sein")
     where = ["e.end_utc IS NOT NULL", "e.start_utc >= ?", "e.start_utc < ?"]
     args: list = [to_utc_str(day_start_utc(d_from)), to_utc_str(day_start_utc(d_to + timedelta(days=1)))]
-    if not boss:
+    if not sees_all(conn, user):
         user_id = user["id"]  # Mitarbeiter: nur eigene Zeiten
     if user_id:
         where.append("e.user_id = ?")
@@ -63,6 +62,23 @@ def build(conn: sqlite3.Connection, user, d_from: date, d_to: date, customer_id:
     elif customer_id:
         where.append("p.customer_id = ?")
         args.append(customer_id)
+    if billed == "open":
+        where.append("e.billed_at IS NULL")
+    elif billed == "billed":
+        where.append("e.billed_at IS NOT NULL")
+    return where, args, user_id
+
+
+def build(conn: sqlite3.Connection, user, d_from: date, d_to: date, customer_id: Optional[int] = None,
+          project_id: Optional[int] = None, user_id: Optional[int] = None, group: str = "customer",
+          billed: str = "all") -> Dict:
+    if group not in GROUPS:
+        raise ReportError("Unbekannte Gruppierung")
+    team = is_team(conn)
+    boss = sees_all(conn, user)
+    if group == "user" and not (team and boss):
+        group = "customer"
+    where, args, user_id = where_clause(conn, user, d_from, d_to, customer_id, project_id, user_id, billed)
     rows = conn.execute(
         "SELECT e.*, p.name AS project, p.color AS project_color, c.name AS customer, t.title AS task, u.display_name AS user_name "
         "FROM time_entries e JOIN projects p ON p.id = e.project_id LEFT JOIN customers c ON c.id = p.customer_id "
@@ -78,6 +94,8 @@ def build(conn: sqlite3.Connection, user, d_from: date, d_to: date, customer_id:
             "minutes": minutes, "user": r["user_name"], "user_id": r["user_id"],
             "customer": r["customer"] or "Ohne Kunde", "project": r["project"], "project_id": r["project_id"],
             "project_color": r["project_color"], "task": r["task"] or "", "note": r["note"], "on_site": bool(r["on_site"]),
+            "billed": bool(r["billed_at"]), "billed_day": to_local(parse_utc(r["billed_at"])).date().isoformat() if r["billed_at"] else "",
+            "billed_ref": r["billed_ref"] or "",
         })
 
     def key1(x):
@@ -118,6 +136,8 @@ def build(conn: sqlite3.Connection, user, d_from: date, d_to: date, customer_id:
         filters.append(f"Kunde: {name}")
     if project_id:
         filters.append(f"Projekt: {(conn.execute('SELECT name FROM projects WHERE id = ?', (project_id,)).fetchone() or ['?'])[0]}")
+    if billed != "all":
+        filters.append(BILLED[billed].capitalize())
     if user_id and team:
         filters.append(f"Mitarbeiter: {(conn.execute('SELECT display_name FROM users WHERE id = ?', (user_id,)).fetchone() or ['?'])[0]}")
     return {
@@ -126,9 +146,24 @@ def build(conn: sqlite3.Connection, user, d_from: date, d_to: date, customer_id:
         "total_minutes": total, "total": hm(total), "count": len(entries),
         "customers": len({x["customer"] for x in entries}), "projects": len({x["project_id"] for x in entries}),
         "people": len({x["user_id"] for x in entries}),
+        "billed_minutes": sum(x["minutes"] for x in entries if x["billed"]),
+        "open_minutes": sum(x["minutes"] for x in entries if not x["billed"]),
+        "billed_filter": billed, "budgets": _budgets(conn, {x["project_id"] for x in entries}),
         "groups": out_groups, "entries": entries, "filters": filters,
         "company": get_setting(conn, "company_name"), "created": to_local(now_utc()),
     }
+
+
+def _budgets(conn, ids) -> Dict:
+    """Budget der Projekte in der Auswertung (Gesamtverbrauch, nicht nur im Zeitraum)."""
+    from . import budget
+    out = {}
+    for pid in ids:
+        p = conn.execute("SELECT id, name, budget_minutes FROM projects WHERE id = ?", (pid,)).fetchone()
+        i = budget.info(conn, p) if p else None
+        if i:
+            out[p["name"]] = i
+    return out
 
 
 def _day_label(iso: str) -> str:
@@ -154,12 +189,13 @@ def to_csv(data: Dict) -> bytes:
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=";", lineterminator="\r\n")
     head = ["Datum", "Von", "Bis", "Dauer (h:mm)", "Stunden"] + (["Mitarbeiter"] if data["team"] else []) + \
-           ["Kunde", "Projekt", "Aufgabe", "Notiz", "Vor Ort"]
+           ["Kunde", "Projekt", "Aufgabe", "Notiz", "Vor Ort", "Abgerechnet", "Vermerk"]
     w.writerow(head)
     for x in data["entries"]:
         w.writerow(csvsafe.row([_de(x["day"]), x["start"], x["end"], hm(x["minutes"]), hours_dec(x["minutes"])] +
                                ([x["user"]] if data["team"] else []) +
-                               [x["customer"], x["project"], x["task"], x["note"], "ja" if x["on_site"] else ""]))
+                               [x["customer"], x["project"], x["task"], x["note"], "ja" if x["on_site"] else "",
+                                _de(x["billed_day"]) if x["billed"] else "", x["billed_ref"]]))
     w.writerow(csvsafe.row(["Summe", "", "", hm(data["total_minutes"]), hours_dec(data["total_minutes"])]))
     return ("﻿" + buf.getvalue()).encode("utf-8")
 
@@ -218,21 +254,24 @@ def to_xlsx(data: Dict, img: Optional[Dict]) -> bytes:
 
     ws2 = wb.create_sheet("Buchungen")
     head = ["Datum", "Von", "Bis", "Dauer (h:mm)", "Stunden"] + (["Mitarbeiter"] if data["team"] else []) + \
-           ["Kunde", "Projekt", "Aufgabe", "Notiz", "Vor Ort"]
+           ["Kunde", "Projekt", "Aufgabe", "Notiz", "Vor Ort", "Abgerechnet", "Vermerk"]
     ws2.append(head)
     for c in ws2[1]:
         c.font, c.fill = bold, head_fill
     for x in data["entries"]:
         ws2.append(csvsafe.row([date.fromisoformat(x["day"]), x["start"], x["end"], hm(x["minutes"]), round(x["minutes"] / 60, 2)] +
                                ([x["user"]] if data["team"] else []) +
-                               [x["customer"], x["project"], x["task"], x["note"], "ja" if x["on_site"] else ""]))
+                               [x["customer"], x["project"], x["task"], x["note"], "ja" if x["on_site"] else "",
+                                date.fromisoformat(x["billed_day"]) if x["billed"] else None, x["billed_ref"]]))
         csvsafe.no_formulas(ws2)
+        if x["billed"]:
+            ws2.cell(ws2.max_row, len(head) - 1).number_format = "DD.MM.YYYY"
         ws2.cell(ws2.max_row, 1).number_format = "DD.MM.YYYY"
         ws2.cell(ws2.max_row, 5).number_format = "0.00"
     ws2.append(["Summe", "", "", data["total"], round(data["total_minutes"] / 60, 2)])
     for c in ws2[ws2.max_row]:
         c.font = bold
-    widths = [11, 7, 7, 12, 9] + ([20] if data["team"] else []) + [24, 26, 30, 40, 8]
+    widths = [11, 7, 7, 12, 9] + ([20] if data["team"] else []) + [24, 26, 30, 40, 8, 12, 20]
     for i, wdt in enumerate(widths, 1):
         ws2.column_dimensions[ws2.cell(1, i).column_letter].width = wdt
     for row in ws2.iter_rows(min_row=2):
@@ -368,7 +407,8 @@ def to_pdf(data: Dict, img: Optional[Dict], with_entries: bool = True) -> bytes:
         y += 8
         head()
         for i, x in enumerate(data["entries"]):
-            line2 = " · ".join(p for p in (x["task"], x["note"], "vor Ort" if x["on_site"] else "") if p)
+            line2 = " · ".join(p for p in (x["task"], x["note"], "vor Ort" if x["on_site"] else "",
+                                            ("abgerechnet" + (" " + x["billed_ref"] if x["billed_ref"] else "")) if x["billed"] else "") if p)
             h = 24 if line2 else 14
             if y + h > BOTTOM:
                 new_page()

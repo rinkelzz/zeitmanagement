@@ -1,5 +1,11 @@
-"""Tägliche Erinnerungs-Mail: überfällige und heute fällige Aufgaben – eine Sammel-Mail pro Person.
+"""Erinnerungs-Mails.
 
+1. Tägliche Sammel-Mail: überfällige und heute fällige Aufgaben – eine Mail pro Person.
+2. Erinnerung zur Uhrzeit: Aufgaben mit Uhrzeit (z. B. „um 14:00“) – eine Mail zur Uhrzeit an die Zuständigen
+   (ohne Zuständige an die Person, die sie angelegt hat). Ist die Zeit schon mehr als 6 Stunden vorbei
+   (NAS war aus), wird sie still übersprungen.
+
+Tägliche Sammel-Mail im Detail:
 - Verschickt ab der eingestellten Uhrzeit (Standard 7 Uhr), höchstens einmal am Tag pro Person
   (Tabelle reminder_log). War die NAS um diese Zeit aus, kommt die Mail, sobald sie wieder läuft – aber nur
   am selben Tag.
@@ -8,7 +14,7 @@
 - Ohne fällige Aufgaben keine Mail. Fehler werden protokolliert und höchstens 3-mal am Tag wiederholt.
 """
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 from .db import get_setting, is_team
@@ -98,4 +104,56 @@ def run_due(conn: sqlite3.Connection, now_local: Optional[datetime] = None) -> L
             r = {"status": "error", "error": str(e)}
             _log(conn, u["id"], today, "error", f"{tries + 1}|{e}")
         results.append({"user_id": u["id"], **r})
+    return results
+
+
+LATE_LIMIT = timedelta(hours=6)
+
+
+def _recipients(conn: sqlite3.Connection, task) -> List[sqlite3.Row]:
+    if is_team(conn):
+        rows = conn.execute("SELECT u.* FROM task_assignees a JOIN users u ON u.id = a.user_id WHERE a.task_id = ?",
+                            (task["id"],)).fetchall()
+        if not rows and task["created_by"]:
+            rows = conn.execute("SELECT * FROM users WHERE id = ?", (task["created_by"],)).fetchall()
+    else:
+        rows = conn.execute("SELECT * FROM users WHERE active = 1 AND is_admin = 1 ORDER BY id LIMIT 1").fetchall()
+    return [u for u in rows if u["active"] and u["remind"] and u["email"] and valid_email(u["email"])]
+
+
+def run_timed(conn: sqlite3.Connection, now_local: Optional[datetime] = None) -> List[Dict]:
+    """Erinnerungen zur Uhrzeit verschicken (vom Zeitplan jede Minute aufgerufen)."""
+    now_local = now_local or to_local(now_utc())
+    if get_setting(conn, "reminders_enabled") != "1" or not smtp_config(conn)["host"]:
+        return []
+    stamp = now_local.strftime("%Y-%m-%d %H:%M")
+    rows = conn.execute(
+        "SELECT t.*, p.name AS project FROM tasks t LEFT JOIN projects p ON p.id = t.project_id "
+        "WHERE t.done = 0 AND t.due_time IS NOT NULL AND t.due_date IS NOT NULL AND t.reminded_at IS NULL "
+        "AND (t.due_date || ' ' || t.due_time) <= ?", (stamp,)).fetchall()
+    results = []
+    company = get_setting(conn, "company_name")
+    for t in rows:
+        when = datetime.strptime(f"{t['due_date']} {t['due_time']}", "%Y-%m-%d %H:%M").replace(tzinfo=now_local.tzinfo)
+        status, sent_to = "late", []
+        if now_local - when <= LATE_LIMIT:
+            status = "sent"
+            for u in _recipients(conn, t):
+                body = "\n".join([
+                    f"Hallo {u['display_name']},", "",
+                    f"Erinnerung: {t['title']}",
+                    f"fällig {_de(t['due_date'])} um {t['due_time']} Uhr" + (f" – {t['project']}" if t["project"] else ""),
+                    *(["", t["notes"]] if t["notes"] else []),
+                    "", "–", "Zeitmanagement" + (f" · {company}" if company else ""),
+                ])
+                try:
+                    send_mail(conn, u["email"], f"Erinnerung {t['due_time']}: {t['title']}"[:150], body)
+                    sent_to.append(u["id"])
+                except MailError as e:
+                    status = "error"
+                    print(f"[zeitmanagement] Erinnerung Aufgabe {t['id']} an {u['email']}: {e}", flush=True)
+        if status == "error" and not sent_to:
+            continue  # beim nächsten Durchlauf noch einmal versuchen (bis 6 Stunden nach der Zeit)
+        conn.execute("UPDATE tasks SET reminded_at = ? WHERE id = ?", (now_utc_str(), t["id"]))
+        results.append({"task_id": t["id"], "status": status, "to": sent_to})
     return results
