@@ -340,7 +340,13 @@
           <p class="muted small">Betreff mit Kennung, z. B. <code>[#T-2026-0042]</code>. Ohne Mailserver (Verwaltung → Mail) gehen keine Mails raus.</p>
         </fieldset>
         <fieldset><legend>Bearbeiter</legend>
-          <label class="inline"><input type="checkbox" id="hdNotify"> Neue Meldung: Mail an den Bearbeiter (sonst an den Chef)</label>
+          <label class="inline"><input type="checkbox" id="hdNotify"> Neue Meldung oder Antwort des Melders: Mail an den Bearbeiter (sonst an den Chef)</label>
+        </fieldset>
+        <fieldset><legend>Melder-Portal</legend>
+          <label class="inline"><input type="checkbox" id="hdPortal"> Portal einschalten</label>
+          <p class="muted small">Melder melden sich mit einem Link per Mail an (ohne Passwort), sehen ihre Tickets, antworten und melden Neues.
+            Jede Mail an den Melder enthält dann einen Link zu genau diesem Ticket.</p>
+          <div class="linkbox hidden" id="hdPortalBox"><code id="hdPortalUrl"></code><button class="mini" id="hdPortalCopy">Kopieren</button></div>
         </fieldset>
         <fieldset><legend>Formular</legend>
           <label>Hinweis über dem Absenden-Knopf <input id="hdHint" maxlength="500"></label>

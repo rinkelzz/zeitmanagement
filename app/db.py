@@ -408,6 +408,30 @@ CREATE TABLE IF NOT EXISTS ticket_senders (
     conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_requester ON tickets(requester_email)")
 
 
+def _m9_portal(conn: sqlite3.Connection) -> None:
+    """Version 0.9: Melder-Portal (Anmelde-Links per Mail, Sitzungen) und Statuslinks je Ticket."""
+    _run(conn, """
+CREATE TABLE IF NOT EXISTS portal_logins (
+    token_hash  TEXT PRIMARY KEY,
+    email       TEXT NOT NULL COLLATE NOCASE,
+    created_at  TEXT NOT NULL,
+    expires_at  TEXT NOT NULL,
+    used_at     TEXT
+);
+CREATE TABLE IF NOT EXISTS portal_sessions (
+    token_hash  TEXT PRIMARY KEY,
+    email       TEXT NOT NULL COLLATE NOCASE,
+    created_at  TEXT NOT NULL,
+    expires_at  TEXT NOT NULL,
+    last_seen   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_portal_sessions_email ON portal_sessions(email);
+""")
+    if "link_salt" not in _columns(conn, "tickets"):
+        # neu würfeln = alter Statuslink ungültig
+        conn.execute("ALTER TABLE tickets ADD COLUMN link_salt TEXT NOT NULL DEFAULT ''")
+
+
 # Version → Schritt. Nur anhängen, nie ändern!
 MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     1: _m1_basis,
@@ -418,6 +442,7 @@ MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     6: _m6_dienstplan,
     7: _m7_helpdesk,
     8: _m8_mail,
+    9: _m9_portal,
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 
@@ -477,6 +502,9 @@ DEFAULT_SETTINGS = {
     "imap_last_run": "",
     "imap_last_error": "",
     "imap_last_result": "",
+    # Helpdesk: Melder-Portal mit Anmelde-Link per Mail und Statuslinks in den Mails
+    "hd_portal": "0",
+    "portal_secret": "",           # wird beim ersten Start erzeugt
 }
 
 
@@ -537,6 +565,8 @@ def init_db() -> None:
         first_start = not conn.execute("SELECT 1 FROM app_settings LIMIT 1").fetchone()
         for key, value in DEFAULT_SETTINGS.items():
             conn.execute("INSERT OR IGNORE INTO app_settings(key, value) VALUES (?, ?)", (key, value))
+        if not get_setting(conn, "portal_secret"):
+            set_setting(conn, "portal_secret", secrets.token_hex(32))
         if first_start:
             # Werte aus dem Installationsassistenten (nur beim allerersten Start)
             if settings.initial_mode in MODES:

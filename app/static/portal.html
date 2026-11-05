@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Support-Portal</title>
+<link rel="icon" href="{{p}}static/icon.png">
+<link rel="stylesheet" href="{{p}}static/app.css?v={{v}}">
+<script src="{{p}}static/theme.js?v={{v}}"></script>
+<script>window.ZM_P = "{{p}}";</script>
+</head>
+<body class="public">
+<div class="pub portal">
+  <div class="pubhead">
+    <span class="logo" id="pLogoTxt"></span><img id="pLogo" class="pubLogo hidden" alt="">
+    <div style="flex:1"><b id="pCompany">Support</b><small>Support-Portal</small></div>
+    <span class="small muted" id="pWho"></span>
+    <button class="mini hidden" id="pLogout">Abmelden</button>
+  </div>
+
+  <section class="card hidden" id="vLogin">
+    <div><h1>Anmelden</h1>
+      <p class="muted" style="margin:6px 0 0">Gib die E-Mail-Adresse ein, mit der du bei uns Probleme meldest. Du bekommst einen Anmelde-Link per Mail – ganz ohne Passwort.</p></div>
+    <label>E-Mail <input id="lMail" type="email" autocomplete="email" maxlength="200"></label>
+    <div class="err" id="lErr"></div>
+    <button class="primary big" id="lSend" style="justify-self:start">Anmelde-Link schicken</button>
+  </section>
+
+  <section class="card hidden" id="vList">
+    <div class="toolbar"><h1 style="margin:0">Meine Tickets</h1><button class="primary" id="nBtn">+ Neues Problem melden</button></div>
+    <div id="lList"></div>
+    <div class="err" id="listErr"></div>
+  </section>
+
+  <section class="card hidden" id="vNew">
+    <div><a href="#" class="small" data-back>← Meine Tickets</a><h1 style="margin-top:6px">Problem melden</h1></div>
+    <label id="nProjWrap" class="hidden">Wofür? <select id="nProj"></select></label>
+    <label>Worum geht es? * <input id="nTitle" maxlength="200" placeholder="z. B. Drucker druckt nur leere Seiten"></label>
+    <label>Beschreibung * <textarea id="nBody" maxlength="20000" placeholder="Was passiert genau? Seit wann? An welchem Gerät?"></textarea></label>
+    <div class="urg">
+      <label class="modeopt on"><input type="radio" name="nurg" value="0" checked><span>Normal</span><small>Kann bis morgen warten</small></label>
+      <label class="modeopt"><input type="radio" name="nurg" value="1"><span>Dringend</span><small>Arbeit steht still</small></label>
+    </div>
+    <div class="pfiles" data-files="n"></div>
+    <div class="hint hidden" id="nHint"><span>🔒</span><span id="nHintText"></span></div>
+    <div class="err" id="nErr"></div>
+    <button class="primary big" id="nSend" style="justify-self:start">Meldung absenden</button>
+  </section>
+
+  <section class="card hidden" id="vTicket">
+    <div><a href="#" class="small" data-back id="tBack">← Meine Tickets</a>
+      <div class="row" style="margin-top:6px"><span class="tnr" id="tNr"></span><span class="st" id="tSt"></span></div>
+      <h1 id="tTitle" style="margin-top:4px"></h1></div>
+    <div id="tMsgs"></div>
+    <div class="row" id="tActions"></div>
+    <div class="reply">
+      <textarea id="rText" maxlength="20000" placeholder="Antwort oder Nachtrag schreiben …"></textarea>
+      <div class="pfiles" data-files="r" style="padding:0 10px 8px"></div>
+      <div class="bar2"><span class="muted small" style="margin-right:auto">Geht direkt an den Support.</span><button class="primary" id="rSend">Senden</button></div>
+    </div>
+    <div class="err" id="tErr"></div>
+  </section>
+
+  <section class="card hidden" id="vMsg"><div class="empty" style="padding:28px 10px"><div class="big" id="mIcon">✉️</div><h2 id="mTitle"></h2><p id="mText"></p>
+    <p><button id="mBtn" class="hidden"></button></p></div></section>
+
+  <div class="pubfoot" id="pFoot"></div>
+</div>
+<script src="{{p}}static/portal.js?v={{v}}"></script>
+</body>
+</html>

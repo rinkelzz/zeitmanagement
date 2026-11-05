@@ -61,6 +61,21 @@ def create_ticket(conn: sqlite3.Connection, *, project_id: int, title: str, body
     return conn.execute("SELECT * FROM tickets WHERE id = ?", (tid,)).fetchone()
 
 
+def requester_reply(conn: sqlite3.Connection, t, body: str, author_name: str, via: str, notify: bool = True) -> int:
+    """Antwort des Melders (per Mail oder Portal): in den Verlauf, wartendes/erledigtes Ticket wieder „in Arbeit“,
+    als ungelesen markieren, Bearbeiter benachrichtigen. Liefert die ID der Nachricht."""
+    now = now_utc_str()
+    cur = conn.execute("INSERT INTO ticket_messages(ticket_id, kind, author_name, body, created_at) VALUES (?, 'requester', ?, ?, ?)",
+                       (t["id"], author_name, body, now))
+    if t["status"] in ("wait", "done"):
+        conn.execute("UPDATE tickets SET status = 'open', done_at = NULL WHERE id = ?", (t["id"],))
+        system_message(conn, t["id"], f"Antwort {via} – Ticket ist wieder „In Arbeit“" + (" (war erledigt)" if t["status"] == "done" else ""))
+    conn.execute("UPDATE tickets SET unread = 1, updated_at = ? WHERE id = ?", (now, t["id"]))
+    if notify and mail_ready(conn) and get_setting(conn, "hd_notify_new") == "1":
+        notify_staff(conn, _load(conn, t["id"]), "Antwort des Melders", body)
+    return cur.lastrowid
+
+
 def system_message(conn: sqlite3.Connection, ticket_id: int, text: str, actor_id: Optional[int] = None) -> None:
     conn.execute("INSERT INTO ticket_messages(ticket_id, kind, author_id, body, created_at) VALUES (?, 'system', ?, ?, ?)",
                  (ticket_id, actor_id, text, now_utc_str()))
@@ -122,8 +137,14 @@ def _company(conn) -> str:
     return get_setting(conn, "company_name") or get_setting(conn, "smtp_from_name") or "Zeitmanagement"
 
 
-def _footer(conn) -> str:
-    return f"\n\n-- \n{_company(conn)}\nBitte die Ticketnummer im Betreff stehen lassen, wenn du antwortest."
+def _footer(conn, t=None) -> str:
+    link = ""
+    if t is not None:
+        from . import portal
+        url = portal.status_url(conn, t)
+        if url:
+            link = f"\n\nTicket ansehen und antworten: {url}"
+    return (link + f"\n\n-- \n{_company(conn)}\nBitte die Ticketnummer im Betreff stehen lassen, wenn du per Mail antwortest.")
 
 
 def load(conn, ticket_id: int):
@@ -167,7 +188,7 @@ def mail_created(ticket_id: int) -> None:
             _send(conn, t["id"], t["requester_email"], f"{tag(t)} Deine Meldung: {t['title']}",
                   hello + f"deine Meldung ist eingegangen und hat die Nummer {nr}.\n"
                   "Wir kümmern uns darum und melden uns per Mail.\n\n"
-                  f"Betreff: {t['title']}" + _footer(conn), "Eingangsbestätigung")
+                  f"Betreff: {t['title']}" + _footer(conn, t), "Eingangsbestätigung")
         if get_setting(conn, "hd_notify_new") == "1":
             first = conn.execute("SELECT body FROM ticket_messages WHERE ticket_id = ? AND kind = 'requester' ORDER BY id LIMIT 1",
                                  (t["id"],)).fetchone()
@@ -212,7 +233,7 @@ def mail_reply(ticket_id: int, message_id: int) -> None:
                  conn.execute("SELECT name, data, mime FROM ticket_files WHERE message_id = ?", (message_id,))]
         hello = f"Hallo {t['requester_name']},\n\n" if t["requester_name"] else ""
         _send(conn, t["id"], t["requester_email"], f"{tag(t)} Re: {t['title']}",
-              hello + m["body"] + _footer(conn), "Antwort", attachments=files)
+              hello + m["body"] + _footer(conn, t), "Antwort", attachments=files)
     finally:
         conn.close()
 
@@ -228,7 +249,7 @@ def mail_done(ticket_id: int) -> None:
         hello = f"Hallo {t['requester_name']},\n\n" if t["requester_name"] else "Hallo,\n\n"
         _send(conn, t["id"], t["requester_email"], f"{tag(t)} Erledigt: {t['title']}",
               hello + f"deine Meldung {number(t['year'], t['seq'])} ist erledigt.\n"
-              "Falls das Problem wieder auftritt, melde dich gern noch einmal." + _footer(conn), "Erledigt-Mail")
+              "Falls das Problem wieder auftritt, melde dich gern noch einmal." + _footer(conn, t), "Erledigt-Mail")
     finally:
         conn.close()
 

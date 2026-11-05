@@ -15,8 +15,8 @@ from .dsm_auth import proxy_info, publish_proxy_files
 from . import scheduler
 from . import modules
 from fastapi import Depends
-from .routers import (auth, backup, branding, events, projects, public_form, reports, roster, settings as settings_router, tasks,
-                      tickets, times, updates, users)
+from .routers import (auth, backup, branding, events, portal, projects, public_form, reports, roster, settings as settings_router,
+                      tasks, tickets, times, updates, users)
 
 
 @asynccontextmanager
@@ -71,7 +71,7 @@ class _RememberPeer:
 app.add_middleware(_RememberPeer)  # zuletzt hinzugefügt = läuft zuerst
 
 for r in (auth.router, backup.router, branding.router, projects.router, settings_router.router, updates.router, users.router,
-          tickets.router, public_form.router):
+          tickets.router, public_form.router, portal.router):
     app.include_router(r)
 # Abschaltbare Module: die API antwortet mit 403, solange das Modul aus ist
 for r, key in ((tasks.router, "tasks"), (events.router, "calendar"), (events.feed_router, "calendar"), (roster.router, "roster"),

@@ -565,3 +565,17 @@ nav button { white-space: nowrap; }
 .inmail .mailbody { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg); padding: 10px; border-radius: 8px; margin: 6px 0 0; font-size: 13.5px; max-height: 320px; overflow-y: auto; }
 .inmail select { max-width: 280px; }
 #hdForms input[data-hsend] { font-size: 13px; padding: 5px 8px; }
+/* Melder-Portal */
+.portal { max-width: 760px; }
+.portal .pubhead button { flex: none; }
+.pticket { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 6px; border-bottom: 1px solid var(--line);
+           color: var(--text); text-decoration: none; }
+.pticket:hover { background: var(--bg); }
+.pmsg { padding: 12px 14px; border-radius: 12px; margin: 10px 0; max-width: 88%; }
+.pmsg.me { background: color-mix(in srgb, var(--accent) 10%, var(--card)); margin-left: auto; }
+.pmsg.them { background: var(--bg); }
+.pmsg .who { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
+.pmsg .who span { color: var(--muted); font-size: 12px; }
+.pmsg p { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pmsg .file { text-decoration: none; }
+.pfiles .flist { margin-top: 6px; }

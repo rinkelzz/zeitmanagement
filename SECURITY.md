@@ -44,6 +44,13 @@ Unterstützt wird jeweils die neueste Version unter [Releases](https://github.co
   übernommen. In ein bestehendes Ticket schreiben kann per Mail nur der Melder (bzw. seine Domain oder eine
   Absender-Domain des Projekts) – die Ticketnummer allein reicht nicht.
 
+- **Melder-Portal:** Anmeldung nur per Einmal-Link (30 Minuten, 256 Bit, nur als Hash gespeichert), immer gleiche
+  Antwort auf „Link schicken“, höchstens 3 Links pro Adresse und 10 pro Absender in 15 Minuten. Eigener Sitzungs-Cookie
+  (HttpOnly, SameSite=Lax), getrennt von den Mitarbeiter-Konten. Melder sehen nur Tickets mit ihrer Adresse und darin
+  nur Meldungen und Antworten – keine internen Notizen, Systemeinträge oder Zeiten. **Statuslinks** sind per
+  HMAC-SHA-256 signiert (Schlüssel der Installation + Salz pro Ticket) und öffnen nur dieses eine Ticket; „Erneuern“
+  macht den alten Link ungültig.
+
 ## Hinweise für den Betrieb
 
 - Die App nur per **HTTPS** (Reverse Proxy von DSM mit Zertifikat) nach außen freigeben, nie den Port
@@ -60,6 +67,8 @@ Unterstützt wird jeweils die neueste Version unter [Releases](https://github.co
 - Für den Mail-Abruf ein eigenes Postfach nur für den Support verwenden: Die App verschiebt alle Mails aus dem
   Abruf-Ordner in den Erledigt-Ordner. Absender-Adressen lassen sich fälschen – wer die Domain eines Kunden kennt,
   kann eine Mail in dessen Namen schicken. Wie beim Formular landet so etwas aber nur als Meldung im Ticket.
+- Statuslinks stehen in den Mails an den Melder – wer eine solche Mail weiterleitet, gibt Lese- und Antwortzugriff
+  auf dieses eine Ticket weiter. Interne Notizen bleiben trotzdem verborgen; bei Bedarf den Link erneuern.
 
 # Security (English)
 

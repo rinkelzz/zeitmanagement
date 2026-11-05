@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from .. import helpdesk as hd
 from .. import modules
 from ..access import get_project, project_filter, sees_all
-from .. import mailin
+from .. import mailin, portal
 from ..db import audit, get_db, get_setting, is_team, set_setting
 from ..mailer import valid_email
 from ..security import admin_user, current_user
@@ -188,6 +188,7 @@ def _detail(conn, user, row) -> dict:
                      "end": local_iso(e["end_utc"]), "running": e["end_utc"] is None, "seconds": seconds_of(e),
                      "note": e["note"], "on_site": bool(e["on_site"])} for e in entries]
     out["can_delete"] = sees_all(conn, user)
+    out["portal_link"] = portal.status_url(conn, row) if row["requester_email"] else None
     out["mail_ready"] = hd.mail_ready(conn)
     return out
 
@@ -359,6 +360,16 @@ def download(ticket_id: int, file_id: int, inline: bool = False, user=Depends(cu
         "Cache-Control": "private, no-store"})
 
 
+@router.post("/tickets/{ticket_id}/link")
+def renew_link(ticket_id: int, user=Depends(current_user), conn: sqlite3.Connection = Depends(get_db)):
+    """Statuslink erneuern – der alte Link funktioniert danach nicht mehr."""
+    row = _get(conn, user, ticket_id)
+    portal.renew_link(conn, ticket_id)
+    hd.system_message(conn, ticket_id, f"{user['display_name']} hat den Statuslink erneuert – der alte gilt nicht mehr", user["id"])
+    audit(conn, user["id"], "ticket_link_renewed", f"ticket:{ticket_id}", hd.number(row["year"], row["seq"]))
+    return _detail(conn, user, _get(conn, user, ticket_id))
+
+
 @router.delete("/tickets/{ticket_id}")
 def delete(ticket_id: int, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
     row = _get(conn, admin, ticket_id)
@@ -372,13 +383,15 @@ def delete(ticket_id: int, admin=Depends(admin_user), conn: sqlite3.Connection =
 
 # --- Verwaltung: Formular-Links und Einstellungen ---------------------------------
 
-HD_KEYS = ("hd_mail_confirm", "hd_mail_reply", "hd_mail_done", "hd_notify_new", "hd_attachments")
+HD_KEYS = ("hd_mail_confirm", "hd_mail_reply", "hd_mail_done", "hd_notify_new", "hd_attachments", "hd_portal")
 
 
 def hd_settings(conn) -> dict:
     out = {k[3:]: get_setting(conn, k) == "1" for k in HD_KEYS}
     out.update({"form_hint": get_setting(conn, "hd_form_hint"), "privacy_url": get_setting(conn, "hd_privacy_url"),
                 "retention_months": int(get_setting(conn, "hd_retention_months") or 0)})
+    base = portal.base_url(conn)
+    out["portal_url"] = f"{base}/portal" if base else None
     return out
 
 
@@ -388,6 +401,7 @@ class HdSettingsIn(BaseModel):
     mail_done: Optional[bool] = None
     notify_new: Optional[bool] = None
     attachments: Optional[bool] = None
+    portal: Optional[bool] = Field(None, description="Melder-Portal mit Anmelde-Link und Statuslinks in den Mails")
     form_hint: Optional[str] = Field(None, max_length=500)
     privacy_url: Optional[str] = Field(None, max_length=300)
     retention_months: Optional[int] = Field(None, ge=0, le=120, description="0 = nie löschen")

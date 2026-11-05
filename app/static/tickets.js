@@ -333,7 +333,9 @@ function renderTicket() {
       <dt>Eingang</dt><dd>${esc(t.source_label)}</dd>
       <dt>Erstellt</dt><dd>${fmtDT(t.created_at)}</dd>
       ${t.done_at ? `<dt>Erledigt</dt><dd>${fmtDT(t.done_at)}</dd>` : ""}
-      <dt>Anhänge</dt><dd>${t.attachments.length || "keine"}</dd></dl></div>`;
+      <dt>Anhänge</dt><dd>${t.attachments.length || "keine"}</dd>
+      ${t.portal_link ? `<dt>Statuslink</dt><dd><button class="mini" id="tkLinkCopy" title="Link zu diesem Ticket für den Melder">Kopieren</button>
+        <button class="mini" id="tkLinkNew" title="Neuen Link erzeugen – der alte gilt dann nicht mehr">Erneuern</button></dd>` : ""}</dl></div>`;
   $("tkPanel").innerHTML = side;
   bindTicket();
   loadThumbs();
@@ -366,6 +368,14 @@ function bindTicket() {
   $("tkProject").onchange = () => {
     if (confirm("Ticket in dieses Projekt verschieben? Nicht abgerechnete Zeiten wandern mit.")) tkPatch({ project_id: Number($("tkProject").value) });
     else $("tkProject").value = t.project_id;
+  };
+  if ($("tkLinkCopy")) $("tkLinkCopy").onclick = () => {
+    try { navigator.clipboard.writeText(t.portal_link); okMsg($("tkDErr"), "Statuslink kopiert."); } catch (e) { prompt("Statuslink:", t.portal_link); }
+  };
+  if ($("tkLinkNew")) $("tkLinkNew").onclick = async () => {
+    if (!confirm("Neuen Statuslink erzeugen? Der Link in bisherigen Mails funktioniert dann nicht mehr.")) return;
+    try { TK.detail = await api(`tickets/${t.id}/link`, { method: "POST" }); renderTicket(); okMsg($("tkDErr"), "Neuer Statuslink erzeugt."); }
+    catch (e) { $("tkDErr").textContent = e.message; }
   };
   $$("#tkPanel [data-req]").forEach(inp => inp.onchange = () => tkPatch({ [inp.dataset.req]: inp.value.trim() }));
   $$("#tkMain [data-rk]").forEach(b => b.onclick = () => {
@@ -496,7 +506,9 @@ function renderHdForms() {
 function fillHdSettings() {
   const s = HD.settings;
   $("hdConfirm").checked = s.mail_confirm; $("hdReply").checked = s.mail_reply; $("hdDone").checked = s.mail_done;
-  $("hdNotify").checked = s.notify_new; $("hdFiles").checked = s.attachments;
+  $("hdNotify").checked = s.notify_new; $("hdFiles").checked = s.attachments; $("hdPortal").checked = s.portal;
+  $("hdPortalUrl").textContent = s.portal_url || "erst eine öffentliche Adresse eintragen (Einstellungen)";
+  $("hdPortalBox").classList.toggle("hidden", !s.portal);
   $("hdHint").value = s.form_hint || ""; $("hdPrivacy").value = s.privacy_url || "";
   $("hdRetention").value = String(s.retention_months);
 }
@@ -505,7 +517,7 @@ $("hdSave").onclick = async () => {
   try {
     HD.settings = await api("helpdesk/settings", { method: "PATCH", body: {
       mail_confirm: $("hdConfirm").checked, mail_reply: $("hdReply").checked, mail_done: $("hdDone").checked,
-      notify_new: $("hdNotify").checked, attachments: $("hdFiles").checked, form_hint: $("hdHint").value.trim(),
+      notify_new: $("hdNotify").checked, attachments: $("hdFiles").checked, portal: $("hdPortal").checked, form_hint: $("hdHint").value.trim(),
       privacy_url: $("hdPrivacy").value.trim(), retention_months: Number($("hdRetention").value) } });
     fillHdSettings(); okMsg($("hdErr"), "Gespeichert.");
   } catch (e) { $("hdErr").textContent = e.message; }
@@ -546,6 +558,8 @@ $("imRun").onclick = async () => {
         refreshTicketBadge(); }
   catch (e) { $("imErr").textContent = e.message; }
 };
+
+$("hdPortalCopy").onclick = () => { try { navigator.clipboard.writeText($("hdPortalUrl").textContent); okMsg($("hdErr"), "Portal-Adresse kopiert."); } catch (e) { /* egal */ } };
 
 // ---------- Ereignisse ----------
 $("tkNewBtn").onclick = showNewTicket;

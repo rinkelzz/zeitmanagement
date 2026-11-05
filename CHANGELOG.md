@@ -2,6 +2,35 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.9.0] – 2026-11-05
+
+### Neu
+- **Melder-Portal** unter `…/portal` (Verwaltung → Helpdesk → „Melder-Portal“ einschalten): Melder melden sich mit
+  einem **Anmelde-Link per Mail** an – ohne Passwort, 30 Minuten gültig, nur einmal nutzbar, danach 30 Tage angemeldet.
+- **Meine Tickets:** nur die eigenen (mit der eigenen Adresse), mit Status und letzter Änderung.
+- **Ticketansicht für Melder:** eigene Meldungen und die Antworten des Supports mit Anhängen – **interne Notizen,
+  Systemeinträge und Zeiten sieht der Melder nie**. Antworten mit Bildschirmfotos/PDF, „✓ Problem gelöst“ schließt das
+  Ticket, „Problem besteht noch“ öffnet es wieder. Antworten und Wiederöffnen schicken dem Bearbeiter einen Hinweis.
+- **Neues Problem melden** im Portal – das Projekt ergibt sich aus der Adresse (bei mehreren zur Auswahl).
+- **Statuslink in jeder Mail** an den Melder („Ticket ansehen und antworten“): öffnet genau dieses eine Ticket ohne
+  Anmeldung. In der Ticketansicht lässt er sich kopieren und **erneuern** (der alte gilt dann nicht mehr).
+- Neue Quelle „Portal“ in der Ticketliste; Antworten des Melders per Mail und per Portal laufen über denselben Weg.
+
+### Geändert
+- Das Portal ist nach dem Update **aus**. Ohne eingetragene öffentliche Adresse (Einstellungen) gibt es keine Links in Mails.
+
+### Sicherheit
+- Anmelde-Links und Sitzungen nur als SHA-256-Hash gespeichert; die Antwort auf „Link schicken“ ist immer gleich
+  (keine Prüfung, welche Adressen bekannt sind). Höchstens 3 Links pro Adresse und 10 pro Absender in 15 Minuten.
+  Der Schlüssel steht nur im Teil nach `#` der Adresse und landet so nicht in Server- oder Proxy-Protokollen.
+- Portal-Sitzung mit eigenem Cookie (HttpOnly, SameSite=Lax), getrennt von den Mitarbeiter-Konten.
+- Statuslinks per HMAC-SHA-256 aus einem zufälligen Schlüssel der Installation, Ticket-ID und Salz pro Ticket.
+- Dateien im Portal nur zu eigenen Nachrichten (30 Minuten lang, höchstens 5), Typ am Inhalt geprüft; Download nur von
+  Dateien an Meldungen und Antworten, nie von internen Notizen.
+
+### Technik
+- Datenbank-Schema Version 9 (Anmelde-Links, Portal-Sitzungen, Salz für Statuslinks).
+
 ## [0.8.0] – 2026-11-05
 
 ### Neu
@@ -215,6 +244,7 @@ Erste Version: das Fundament. Aufgaben (0.2) und Projektzeiten (0.3) folgen.
 - Echte Client-IP hinter dem DSM-Reverse-Proxy nur von 127.0.0.1, kein SMTP-Passwort in Sicherungen,
   CSV-Export gegen Formel-Injection geschützt. Details in [SECURITY.md](SECURITY.md).
 
+[0.9.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.9.0
 [0.8.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.8.0
 [0.7.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.7.0
 [0.6.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.6.0

@@ -314,21 +314,12 @@ def process(conn: sqlite3.Connection, raw: bytes, send: bool = True) -> Dict:
     t = _thread_ticket(conn, p)
     if t and may_reply(conn, t, p.from_email):
         body = strip_quote(p.body) or "(ohne Text)"
-        cur = conn.execute("INSERT INTO ticket_messages(ticket_id, kind, author_name, body, created_at) VALUES (?, 'requester', ?, ?, ?)",
-                           (t["id"], p.from_name or p.from_email, body, now_utc_str()))
+        mid = hd.requester_reply(conn, t, body, p.from_name or p.from_email, "per Mail", notify=send)
         for name, data, mime in p.files:
             conn.execute("INSERT INTO ticket_files(ticket_id, message_id, name, mime, size, data, uploaded_by, created_at) "
-                         "VALUES (?, ?, ?, ?, ?, ?, NULL, ?)", (t["id"], cur.lastrowid, name, mime, len(data), data, now_utc_str()))
+                         "VALUES (?, ?, ?, ?, ?, ?, NULL, ?)", (t["id"], mid, name, mime, len(data), data, now_utc_str()))
         _skipped_note(conn, t["id"], p.skipped)
-        now = now_utc_str()
-        if t["status"] in ("wait", "done"):
-            conn.execute("UPDATE tickets SET status = 'open', done_at = NULL WHERE id = ?", (t["id"],))
-            hd.system_message(conn, t["id"], "Antwort per Mail – Ticket ist wieder „In Arbeit“"
-                              + (" (war erledigt)" if t["status"] == "done" else ""))
-        conn.execute("UPDATE tickets SET unread = 1, updated_at = ? WHERE id = ?", (now, t["id"]))
         _seen(conn, p.message_id, "reply", ticket_id=t["id"])
-        if send and hd.mail_ready(conn) and get_setting(conn, "hd_notify_new") == "1":
-            hd.notify_staff(conn, hd.load(conn, t["id"]), "Antwort des Melders", body)
         return {"action": "reply", "ticket_id": t["id"]}
 
     pid = project_for_sender(conn, p.from_email)
