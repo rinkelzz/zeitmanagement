@@ -38,6 +38,12 @@ Unterstützt wird jeweils die neueste Version unter [Releases](https://github.co
 - **Mails aus dem Helpdesk** tragen `Auto-Submitted`, damit Abwesenheitsnotizen keine Mail-Schleifen auslösen.
   Zeilenumbrüche in Betreff und Kopfzeilen werden entfernt (keine Header-Injection).
 
+- **E-Mail-Postfach (Helpdesk):** nur verschlüsselt (SSL oder STARTTLS, Zertifikat wird geprüft). Das Passwort steht
+  nicht in Sicherungen. Automatische Mails (Abwesenheit, Rückläufer, Newsletter, eigene Adresse) werden ignoriert,
+  höchstens 10 neue Tickets pro Absender und Stunde, Mails über 25 MB werden nicht geladen. HTML wird nur als Text
+  übernommen. In ein bestehendes Ticket schreiben kann per Mail nur der Melder (bzw. seine Domain oder eine
+  Absender-Domain des Projekts) – die Ticketnummer allein reicht nicht.
+
 ## Hinweise für den Betrieb
 
 - Die App nur per **HTTPS** (Reverse Proxy von DSM mit Zertifikat) nach außen freigeben, nie den Port
@@ -51,6 +57,9 @@ Unterstützt wird jeweils die neueste Version unter [Releases](https://github.co
 - Das Meldeformular ist öffentlich. Den Link nur an die Leute geben, die melden sollen, und bei Missbrauch unter
   Verwaltung → Helpdesk „Neuer Link“ oder „Abschalten“ wählen. Im Formular steht ein Hinweis, keine vertraulichen
   Daten (z. B. Patientendaten) einzutragen – er lässt sich anpassen.
+- Für den Mail-Abruf ein eigenes Postfach nur für den Support verwenden: Die App verschiebt alle Mails aus dem
+  Abruf-Ordner in den Erledigt-Ordner. Absender-Adressen lassen sich fälschen – wer die Domain eines Kunden kennt,
+  kann eine Mail in dessen Namen schicken. Wie beim Formular landet so etwas aber nur als Meldung im Ticket.
 
 # Security (English)
 

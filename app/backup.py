@@ -63,7 +63,7 @@ def check_dir(path: str) -> Path:
 
 
 # Zugangsdaten, die nicht in die Sicherung gehören (nach dem Wiederherstellen auf einer anderen NAS neu eintragen)
-SECRET_SETTINGS = ("smtp_password",)
+SECRET_SETTINGS = ("smtp_password", "imap_password")
 
 
 def _strip_secrets(db: sqlite3.Connection) -> None:

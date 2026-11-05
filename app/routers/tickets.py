@@ -3,6 +3,7 @@
 Rechte wie bei Projekten: der Chef (und im Einzelperson-Modus man selbst) sieht alle Tickets, Mitarbeiter die
 Tickets der Projekte, in denen sie Mitglied sind. Löschen und die Helpdesk-Verwaltung nur der Chef.
 """
+import re
 import secrets
 import sqlite3
 from typing import List, Optional
@@ -14,7 +15,8 @@ from pydantic import BaseModel, Field
 from .. import helpdesk as hd
 from .. import modules
 from ..access import get_project, project_filter, sees_all
-from ..db import audit, get_db, get_setting, set_setting
+from .. import mailin
+from ..db import audit, get_db, get_setting, is_team, set_setting
 from ..mailer import valid_email
 from ..security import admin_user, current_user
 from ..timeutil import local_iso, now_utc_str
@@ -115,7 +117,8 @@ def counts(user=Depends(current_user), conn: sqlite3.Connection = Depends(get_db
         f"FROM tickets t JOIN projects p ON p.id = t.project_id WHERE {cond}", [user["id"]] + args).fetchone()
     per = conn.execute(f"SELECT t.project_id, COUNT(*) AS n, SUM(t.priority = 1) AS urgent FROM tickets t JOIN projects p ON p.id = t.project_id "
                        f"WHERE t.status != 'done' AND {cond} GROUP BY t.project_id", args).fetchall()
-    return {**{k: r[k] or 0 for k in ("new", "mine", "open", "wait", "unread")},
+    inbox = conn.execute("SELECT COUNT(*) FROM mail_inbox WHERE status = 'open'").fetchone()[0] if user["is_admin"] or not is_team(conn) else 0
+    return {**{k: r[k] or 0 for k in ("new", "mine", "open", "wait", "unread")}, "inbox": inbox,
             "projects": {str(x["project_id"]): {"open": x["n"], "urgent": x["urgent"] or 0} for x in per}}
 
 
@@ -138,7 +141,6 @@ def _check_assignee(conn, assignee_id: Optional[int], project_id: int) -> None:
         raise HTTPException(400, "Bearbeiter nicht gefunden oder deaktiviert")
     if not u["is_admin"] and not conn.execute("SELECT 1 FROM project_members WHERE project_id = ? AND user_id = ?",
                                               (project_id, assignee_id)).fetchone():
-        from ..db import is_team
         if is_team(conn):
             raise HTTPException(400, f"{u['display_name']} ist nicht Mitglied dieses Projekts")
 
@@ -416,10 +418,11 @@ def update_hd_settings(data: HdSettingsIn, admin=Depends(admin_user), conn: sqli
     return hd_settings(conn)
 
 
-def _form_out(r, base: str) -> dict:
+def _form_out(r, base: str, senders: dict) -> dict:
     return {"project_id": r["id"], "project": r["name"], "project_color": r["color"], "customer": r["customer"],
             "active": bool(r["active"]), "token": r["token"], "assignee_id": r["assignee_id"],
-            "url": f"{base}/melden/{r['token']}" if r["token"] else None, "open": r["open"] or 0}
+            "url": f"{base}/melden/{r['token']}" if r["token"] else None, "open": r["open"] or 0,
+            "senders": senders.get(r["id"], [])}
 
 
 @router.get("/helpdesk/forms")
@@ -433,7 +436,10 @@ def list_forms(request: Request, admin=Depends(admin_user), conn: sqlite3.Connec
         "WHERE p.kind = 'project' AND p.archived = 0 ORDER BY COALESCE(c.name, 'zzz'), p.name").fetchall()
     configured = bool(get_setting(conn, "public_url"))
     from ..config import settings as app_settings
-    return {"forms": [_form_out(r, base) for r in rows], "public_url_set": configured or bool(app_settings.public_url)}
+    senders: dict = {}
+    for s in conn.execute("SELECT project_id, pattern FROM ticket_senders ORDER BY pattern"):
+        senders.setdefault(s["project_id"], []).append(s["pattern"])
+    return {"forms": [_form_out(r, base, senders) for r in rows], "public_url_set": configured or bool(app_settings.public_url)}
 
 
 class FormIn(BaseModel):
@@ -464,3 +470,205 @@ def save_form(project_id: int, data: FormIn, request: Request, admin=Depends(adm
         _check_assignee(conn, aid, project_id)
         conn.execute("UPDATE ticket_forms SET assignee_id = ? WHERE project_id = ?", (aid, project_id))
     return list_forms(request, admin, conn)
+
+
+# --- Absender-Domains je Projekt (Zuordnung eingehender Mails) -----------------------
+
+PATTERN_RE = re.compile(r"^([^@\s]+@)?([a-z0-9-]+\.)+[a-z]{2,}$")
+FREEMAIL = {"gmail.com", "googlemail.com", "gmx.de", "gmx.net", "web.de", "t-online.de", "outlook.com", "outlook.de", "hotmail.com",
+            "hotmail.de", "live.de", "yahoo.com", "yahoo.de", "icloud.com", "me.com", "aol.com", "freenet.de", "posteo.de", "mail.de"}
+
+
+class SendersIn(BaseModel):
+    patterns: List[str] = Field(default_factory=list, max_length=50,
+                                description="Domains (physio-henze.de) oder einzelne Adressen (chef@gmx.de)")
+
+
+def _set_senders(conn, project_id: int, patterns: List[str]) -> List[str]:
+    clean = []
+    for raw in patterns:
+        p = raw.strip().lower().lstrip("@")
+        if not p:
+            continue
+        if not PATTERN_RE.match(p):
+            raise HTTPException(400, f"„{raw.strip()}“ ist keine Domain (z. B. physio-henze.de) und keine Mail-Adresse")
+        if p in FREEMAIL:
+            raise HTTPException(400, f"„{p}“ ist ein Freemail-Anbieter – bitte die einzelne Adresse eintragen (z. B. name@{p})")
+        other = conn.execute("SELECT p.name FROM ticket_senders s JOIN projects p ON p.id = s.project_id "
+                             "WHERE s.pattern = ? AND s.project_id != ?", (p, project_id)).fetchone()
+        if other:
+            raise HTTPException(409, f"„{p}“ gehört schon zum Projekt „{other[0]}“")
+        if p not in clean:
+            clean.append(p)
+    conn.execute("DELETE FROM ticket_senders WHERE project_id = ?", (project_id,))
+    conn.executemany("INSERT INTO ticket_senders(project_id, pattern) VALUES (?, ?)", [(project_id, p) for p in clean])
+    return clean
+
+
+@router.put("/helpdesk/senders/{project_id}")
+def save_senders(project_id: int, data: SendersIn, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    p = conn.execute("SELECT * FROM projects WHERE id = ? AND kind = 'project'", (project_id,)).fetchone()
+    if not p:
+        raise HTTPException(404, "Projekt nicht gefunden")
+    clean = _set_senders(conn, project_id, data.patterns)
+    audit(conn, admin["id"], "helpdesk_senders", f"project:{project_id}", f"{p['name']} · {', '.join(clean) or '–'}")
+    return {"project_id": project_id, "senders": clean}
+
+
+# --- E-Mail-Postfach (IMAP) ----------------------------------------------------------
+
+def imap_out(conn) -> dict:
+    c = mailin.config(conn)
+    return {"enabled": c["enabled"], "host": c["host"], "port": c["port"], "security": c["security"], "user": c["user"],
+            "password_set": bool(c["password"]), "folder": c["folder"], "done_folder": c["done_folder"], "interval": c["interval"],
+            "last_run": local_iso(get_setting(conn, "imap_last_run") or None), "last_error": get_setting(conn, "imap_last_error"),
+            "last_result": get_setting(conn, "imap_last_result")}
+
+
+class ImapIn(BaseModel):
+    enabled: Optional[bool] = None
+    host: Optional[str] = Field(None, max_length=200)
+    port: Optional[int] = Field(None, ge=1, le=65535)
+    security: Optional[str] = Field(None, description="ssl oder starttls")
+    user: Optional[str] = Field(None, max_length=200)
+    password: Optional[str] = Field(None, max_length=200, description="leer lassen = unverändert")
+    folder: Optional[str] = Field(None, min_length=1, max_length=100)
+    done_folder: Optional[str] = Field(None, min_length=1, max_length=100)
+    interval: Optional[int] = Field(None, ge=1, le=60, description="Minuten")
+
+
+@router.get("/helpdesk/imap")
+def get_imap(admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    return imap_out(conn)
+
+
+@router.patch("/helpdesk/imap")
+def update_imap(data: ImapIn, admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    ch = data.model_dump(exclude_unset=True)
+    if ch.get("security") is not None and data.security not in ("ssl", "starttls"):
+        raise HTTPException(400, "Verschlüsselung muss ssl oder starttls sein – ohne Verschlüsselung geht es nicht")
+    for k in ("folder", "done_folder"):
+        if ch.get(k) is not None and any(c in ch[k] for c in '"\\\r\n*%'):
+            raise HTTPException(400, "Ordnername enthält ungültige Zeichen")
+    for k, v in ch.items():
+        if v is None or (k == "password" and not v):
+            continue
+        if isinstance(v, bool):
+            set_setting(conn, "imap_" + k, "1" if v else "0")
+        else:
+            set_setting(conn, "imap_" + k, str(v).strip())
+    if data.enabled:
+        c = mailin.config(conn)
+        if not c["host"] or not c["user"] or not c["password"]:
+            set_setting(conn, "imap_enabled", "0")
+            raise HTTPException(400, "Zum Einschalten bitte Server, Benutzer und Passwort eintragen")
+    if ch:
+        audit(conn, admin["id"], "helpdesk_imap", "imap", str({k: ("***" if k == "password" else v) for k, v in ch.items()}))
+    return imap_out(conn)
+
+
+@router.post("/helpdesk/imap/test")
+def test_imap(admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    try:
+        return {"ok": True, "message": mailin.test_connection(conn)}
+    except mailin.ImapError as e:
+        raise HTTPException(502, str(e))
+
+
+@router.post("/helpdesk/imap/run")
+def run_imap(admin=Depends(admin_user), conn: sqlite3.Connection = Depends(get_db)):
+    """Jetzt abrufen (statt auf den Zeitplan zu warten)."""
+    if not mailin.config(conn)["enabled"]:
+        raise HTTPException(400, "Der Mail-Abruf ist abgeschaltet")
+    r = mailin.fetch(conn, force=True)
+    if r is None:
+        raise HTTPException(409, "Ein Abruf läuft gerade – bitte gleich noch einmal versuchen")
+    if r.get("error"):
+        raise HTTPException(502, r["error"])
+    return {"ok": True, "result": r, "imap": imap_out(conn)}
+
+
+# --- Posteingang „unzugeordnet“ -------------------------------------------------------
+
+def _inbox_out(conn, r) -> dict:
+    files = conn.execute("SELECT id, name, mime, size FROM mail_inbox_files WHERE inbox_id = ? ORDER BY id", (r["id"],)).fetchall()
+    return {"id": r["id"], "from_name": r["from_name"], "from_email": r["from_email"], "domain": mailin.domain_of(r["from_email"]),
+            "subject": r["subject"], "body": r["body"], "received_at": local_iso(r["received_at"] or r["created_at"]),
+            "reason": r["reason"], "skipped": r["skipped"], "status": r["status"],
+            "files": [dict(f) for f in files]}
+
+
+def _inbox_admin(conn, user):
+    if not (user["is_admin"] or not is_team(conn)):
+        raise HTTPException(403, "Den Posteingang sieht nur der Chef")
+
+
+@router.get("/helpdesk/inbox")
+def inbox(user=Depends(current_user), conn: sqlite3.Connection = Depends(get_db)):
+    _inbox_admin(conn, user)
+    rows = conn.execute("SELECT * FROM mail_inbox WHERE status = 'open' ORDER BY id DESC LIMIT 200").fetchall()
+    return [_inbox_out(conn, r) for r in rows]
+
+
+def _inbox_row(conn, inbox_id: int):
+    r = conn.execute("SELECT * FROM mail_inbox WHERE id = ?", (inbox_id,)).fetchone()
+    if not r:
+        raise HTTPException(404, "Mail nicht gefunden")
+    if r["status"] != "open":
+        raise HTTPException(409, "Diese Mail ist schon erledigt")
+    return r
+
+
+class AssignIn(BaseModel):
+    project_id: int
+    remember: bool = Field(False, description="Absender-Domain (bzw. bei Freemail die Adresse) dem Projekt zuordnen")
+
+
+@router.post("/helpdesk/inbox/{inbox_id}/assign", status_code=201)
+def assign(inbox_id: int, data: AssignIn, background: BackgroundTasks, user=Depends(current_user),
+           conn: sqlite3.Connection = Depends(get_db)):
+    _inbox_admin(conn, user)
+    r = _inbox_row(conn, inbox_id)
+    _check_project(conn, user, data.project_id)
+    if not valid_email(r["from_email"]):
+        raise HTTPException(400, "Die Mail hat keine gültige Absenderadresse – bitte von Hand ein Ticket anlegen")
+    files = [(f["name"], f["data"], f["mime"]) for f in conn.execute("SELECT name, data, mime FROM mail_inbox_files WHERE inbox_id = ?", (inbox_id,))]
+    t = mailin.new_ticket_from_mail(conn, project_id=data.project_id, from_name=r["from_name"], from_email=r["from_email"],
+                                    subject=r["subject"], body=r["body"], files=files,
+                                    skipped=[s for s in r["skipped"].split("; ") if s])
+    conn.execute("UPDATE mail_inbox SET status = 'ticket', ticket_id = ?, done_at = ?, done_by = ? WHERE id = ?",
+                 (t["id"], now_utc_str(), user["id"], inbox_id))
+    conn.execute("DELETE FROM mail_inbox_files WHERE inbox_id = ?", (inbox_id,))
+    remembered = None
+    if data.remember:
+        dom = mailin.domain_of(r["from_email"])
+        pattern = r["from_email"] if dom in FREEMAIL else dom
+        current = [s[0] for s in conn.execute("SELECT pattern FROM ticket_senders WHERE project_id = ?", (data.project_id,))]
+        if pattern not in current:
+            _set_senders(conn, data.project_id, current + [pattern])
+        remembered = pattern
+    background.add_task(hd.mail_created, t["id"])
+    return {"ticket": ticket_out(_get(conn, user, t["id"])), "remembered": remembered}
+
+
+@router.post("/helpdesk/inbox/{inbox_id}/discard")
+def discard(inbox_id: int, user=Depends(current_user), conn: sqlite3.Connection = Depends(get_db)):
+    _inbox_admin(conn, user)
+    r = _inbox_row(conn, inbox_id)
+    conn.execute("UPDATE mail_inbox SET status = 'discarded', done_at = ?, done_by = ?, body = '' WHERE id = ?",
+                 (now_utc_str(), user["id"], inbox_id))
+    conn.execute("DELETE FROM mail_inbox_files WHERE inbox_id = ?", (inbox_id,))
+    audit(conn, user["id"], "inbox_discarded", f"inbox:{inbox_id}", f"{r['from_email']} · {r['subject'][:80]}")
+    return {"ok": True}
+
+
+@router.get("/helpdesk/inbox/{inbox_id}/files/{file_id}")
+def inbox_file(inbox_id: int, file_id: int, user=Depends(current_user), conn: sqlite3.Connection = Depends(get_db)):
+    _inbox_admin(conn, user)
+    f = conn.execute("SELECT * FROM mail_inbox_files WHERE id = ? AND inbox_id = ?", (file_id, inbox_id)).fetchone()
+    if not f:
+        raise HTTPException(404, "Datei nicht gefunden")
+    safe = f["name"].encode("ascii", "replace").decode().replace('"', "")
+    return Response(f["data"], media_type=f["mime"], headers={
+        "Content-Disposition": f'attachment; filename="{safe}"', "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; sandbox", "Cache-Control": "private, no-store"})

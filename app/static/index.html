@@ -295,11 +295,40 @@
     <section class="card asec" data-asec="helpdesk">
       <h2>Formular-Links pro Projekt</h2>
       <p class="muted small" style="margin-top:-6px">Jeder Link führt zu einem öffentlichen Meldeformular – das Ticket landet direkt im passenden Projekt.
-        „Neuer Link“ macht den alten ungültig. Für Melder von außen muss die App über den Reverse Proxy mit https:// erreichbar sein.</p>
+        „Neuer Link“ macht den alten ungültig. Für Melder von außen muss die App über den Reverse Proxy mit https:// erreichbar sein.
+        <b>Absender-Domains</b> (z. B. <code>physio-henze.de</code>, bei Freemail die ganze Adresse) ordnen eingehende Mails dem Projekt zu.</p>
       <div class="httpwarn hidden" id="hdUrlWarn">Unter Verwaltung → Einstellungen ist noch keine <b>öffentliche Adresse</b> eingetragen –
         die Links unten zeigen deshalb die Adresse, über die du gerade angemeldet bist.</div>
       <div class="scroll"><table id="hdForms"></table></div>
       <div class="err" id="hdFormsErr"></div>
+    </section>
+    <section class="card asec" data-asec="helpdesk">
+      <div class="toolbar"><h2>E-Mail-Postfach</h2><span class="small" id="imState"></span></div>
+      <p class="muted small" style="margin-top:-6px">Die App ruft das Postfach regelmäßig ab und macht aus neuen Mails Tickets. Zugeordnet wird über
+        die <b>Absender-Domains</b> in der Tabelle oben (oder einen Melder, der schon einmal gemeldet hat); alles andere landet unter
+        Tickets → <b>Unzugeordnet</b>. Antworten mit <code>[#T-…]</code> im Betreff landen im Ticket. Verarbeitete Mails wandern in den
+        Erledigt-Ordner. Das Passwort wird nicht in Sicherungen gespeichert.</p>
+      <div class="setgrid">
+        <fieldset><legend>Server</legend>
+          <label>Server <input id="imHost" placeholder="imap.strato.de" maxlength="200"></label>
+          <div class="row"><label>Port <input id="imPort" type="number" class="w80" min="1" max="65535"></label>
+            <label>Verschlüsselung <select id="imSec"><option value="ssl">SSL/TLS (993)</option><option value="starttls">STARTTLS (143)</option></select></label></div>
+        </fieldset>
+        <fieldset><legend>Anmeldung</legend>
+          <label>Benutzer <input id="imUser" autocomplete="off" placeholder="support@rinkel.online" maxlength="200"></label>
+          <label>Passwort <input id="imPw" type="password" autocomplete="new-password" maxlength="200"></label>
+        </fieldset>
+        <fieldset><legend>Ordner und Abruf</legend>
+          <label>Abrufen aus <input id="imFolder" maxlength="100" placeholder="INBOX"></label>
+          <label>Danach verschieben nach <input id="imDone" maxlength="100" placeholder="Zeitmanagement/Erledigt"></label>
+          <label>Alle … Minuten <input id="imInterval" type="number" class="w80" min="1" max="60"></label>
+        </fieldset>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <label class="inline"><input type="checkbox" id="imOn"> Postfach abrufen</label>
+        <button class="primary" id="imSave">Speichern</button><button id="imTest">Verbindung testen</button><button id="imRun">Jetzt abrufen</button>
+      </div>
+      <div class="err" id="imErr"></div>
     </section>
     <section class="card asec" data-asec="helpdesk">
       <h2>Einstellungen</h2>

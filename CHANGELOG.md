@@ -2,6 +2,36 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.8.0] – 2026-11-05
+
+### Neu
+- **Meldungen per E-Mail-Postfach (IMAP):** Die App ruft ein Postfach (z. B. `support@…`) alle 1–60 Minuten ab
+  (Standard 2) und macht aus neuen Mails Tickets – mit Eingangsbestätigung und Hinweis an den Bearbeiter wie beim
+  Formular. Einstellungen, „Verbindung testen“, „Jetzt abrufen“ und Stand des letzten Abrufs unter Verwaltung → Helpdesk.
+- **Zuordnung zum Projekt:** zuerst ein Melder, der schon einmal gemeldet hat, dann die neuen **Absender-Domains pro
+  Projekt** (z. B. `physio-henze.de`; bei Freemail wie gmx.de die einzelne Adresse).
+- **Posteingang „Unzugeordnet“** (nur Chef) in der Ticket-Seitenleiste: Mails ohne passendes Projekt mit Text, Anhängen
+  und Grund. Projekt wählen → „Ticket anlegen“, auf Wunsch wird die Domain dabei fürs nächste Mal gemerkt; oder „Verwerfen“.
+- **Antworten per Mail landen im Ticket:** über `[#T-2026-0042]` im Betreff oder die Antwort auf unsere letzte Mail
+  (In-Reply-To). Der zitierte alte Text wird abgeschnitten. Ein wartendes oder erledigtes Ticket ist danach wieder
+  „In Arbeit“, der Bearbeiter bekommt einen Hinweis. Anhängen dürfen nur der Melder, seine Domain oder die
+  Absender-Domains des Projekts – alle anderen landen im Posteingang.
+- Verarbeitete Mails wandern in den Ordner **„Zeitmanagement/Erledigt“** (wird angelegt; Trennzeichen des Servers
+  wird beachtet, ohne MOVE-Unterstützung per Kopieren + Löschen). Jede Mail wird nur einmal verarbeitet.
+- Anhänge aus Mails wie beim Formular: PNG, JPG, PDF bis 10 MB, höchstens 5 – was fehlt, steht im Verlauf.
+- Der Zähler am Reiter „Tickets“ zählt jetzt auch unzugeordnete Mails mit.
+
+### Sicherheit
+- Abwesenheitsnotizen, Rückläufer, Newsletter, Zustellberichte und Mails von der eigenen Adresse werden ignoriert
+  (keine Mail-Schleifen). Höchstens 10 neue Tickets pro Absender und Stunde, der Rest geht in den Posteingang.
+- Mails über 25 MB werden nicht geladen; sie bleiben im Postfach und erscheinen als Hinweis.
+- HTML-Mails werden in Text umgewandelt (ohne Skripte, Styles, Bilder). Nur verschlüsselte Verbindungen (SSL oder STARTTLS).
+- Das Postfach-Passwort wird wie das SMTP-Passwort **nicht** in Sicherungen gespeichert.
+
+### Technik
+- Datenbank-Schema Version 8 (Posteingang, verarbeitete Mails, Absender-Domains, Message-ID der letzten Mail je Ticket).
+- Nur Standardbibliothek (`imaplib`, `email`) – keine neue Abhängigkeit.
+
 ## [0.7.0] – 2026-11-05
 
 ### Neu
@@ -185,6 +215,7 @@ Erste Version: das Fundament. Aufgaben (0.2) und Projektzeiten (0.3) folgen.
 - Echte Client-IP hinter dem DSM-Reverse-Proxy nur von 127.0.0.1, kein SMTP-Passwort in Sicherungen,
   CSV-Export gegen Formel-Injection geschützt. Details in [SECURITY.md](SECURITY.md).
 
+[0.8.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.8.0
 [0.7.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.7.0
 [0.6.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.6.0
 [0.5.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.5.0

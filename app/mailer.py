@@ -35,7 +35,8 @@ def smtp_config(conn: sqlite3.Connection) -> Dict:
 
 def send_mail(conn: sqlite3.Connection, to: str, subject: str, body: str,
               attachments: Optional[List[Tuple[str, bytes, str]]] = None,
-              headers: Optional[Dict[str, str]] = None) -> None:
+              headers: Optional[Dict[str, str]] = None) -> str:
+    """Mail verschicken. Liefert die Message-ID (damit Antworten darauf später zugeordnet werden können)."""
     cfg = smtp_config(conn)
     if not cfg["host"]:
         raise MailError("Kein Mailserver eingetragen (Verwaltung → Mail)")
@@ -68,6 +69,7 @@ def send_mail(conn: sqlite3.Connection, to: str, subject: str, body: str,
             if cfg["user"]:
                 server.login(cfg["user"], cfg["password"])
             server.send_message(msg)
+        return msg["Message-ID"]
     except smtplib.SMTPAuthenticationError:
         raise MailError("Anmeldung am Mailserver fehlgeschlagen – Benutzer/Passwort prüfen")
     except ssl.SSLError as e:

@@ -355,6 +355,59 @@ CREATE TABLE IF NOT EXISTS ticket_forms (
     conn.execute("CREATE INDEX IF NOT EXISTS idx_time_ticket ON time_entries(ticket_id)")
 
 
+def _m8_mail(conn: sqlite3.Connection) -> None:
+    """Version 0.8: Meldungen per E-Mail-Postfach (IMAP), Posteingang „unzugeordnet“, Absender-Domains je Projekt."""
+    _run(conn, """
+CREATE TABLE IF NOT EXISTS mail_inbox (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id   TEXT NOT NULL DEFAULT '',
+    from_name    TEXT NOT NULL DEFAULT '',
+    from_email   TEXT NOT NULL DEFAULT '',
+    subject      TEXT NOT NULL DEFAULT '',
+    body         TEXT NOT NULL DEFAULT '',
+    received_at  TEXT,                            -- Datum aus der Mail (UTC)
+    status       TEXT NOT NULL DEFAULT 'open',    -- open | ticket | discarded
+    ticket_id    INTEGER REFERENCES tickets(id) ON DELETE SET NULL,
+    reason       TEXT NOT NULL DEFAULT '',        -- warum nicht automatisch zugeordnet
+    skipped      TEXT NOT NULL DEFAULT '',        -- nicht übernommene Anhänge
+    created_at   TEXT NOT NULL,
+    done_at      TEXT,
+    done_by      INTEGER REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_mail_inbox_status ON mail_inbox(status, id);
+
+CREATE TABLE IF NOT EXISTS mail_inbox_files (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    inbox_id  INTEGER NOT NULL REFERENCES mail_inbox(id) ON DELETE CASCADE,
+    name      TEXT NOT NULL,
+    mime      TEXT NOT NULL,
+    size      INTEGER NOT NULL,
+    data      BLOB NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_mail_inbox_files ON mail_inbox_files(inbox_id);
+
+-- jede Mail nur einmal verarbeiten (auch wenn das Verschieben im Postfach scheitert)
+CREATE TABLE IF NOT EXISTS mail_seen (
+    message_id  TEXT PRIMARY KEY,
+    action      TEXT NOT NULL,                   -- ticket | reply | inbox | ignored | toobig
+    ticket_id   INTEGER,
+    inbox_id    INTEGER,
+    seen_at     TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ticket_senders (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    pattern     TEXT NOT NULL UNIQUE COLLATE NOCASE   -- Domain (physio-henze.de) oder Adresse (chef@gmx.de)
+);
+""")
+    if "last_mail_id" not in _columns(conn, "tickets"):
+        # Message-ID unserer letzten Mail zu diesem Ticket – Antworten darauf landen im Ticket
+        conn.execute("ALTER TABLE tickets ADD COLUMN last_mail_id TEXT")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_mailid ON tickets(last_mail_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_requester ON tickets(requester_email)")
+
+
 # Version → Schritt. Nur anhängen, nie ändern!
 MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     1: _m1_basis,
@@ -364,6 +417,7 @@ MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     5: _m5_kalender,
     6: _m6_dienstplan,
     7: _m7_helpdesk,
+    8: _m8_mail,
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 
@@ -410,6 +464,19 @@ DEFAULT_SETTINGS = {
     "hd_privacy_url": "",
     "hd_attachments": "1",
     "hd_retention_months": "12",  # erledigte Tickets nach so vielen Monaten löschen, 0 = nie
+    # Helpdesk: Meldungen per E-Mail-Postfach (IMAP)
+    "imap_enabled": "0",
+    "imap_host": "",
+    "imap_port": "993",
+    "imap_security": "ssl",        # ssl | starttls
+    "imap_user": "",
+    "imap_password": "",
+    "imap_folder": "INBOX",
+    "imap_done_folder": "Zeitmanagement/Erledigt",
+    "imap_interval": "2",          # Minuten
+    "imap_last_run": "",
+    "imap_last_error": "",
+    "imap_last_result": "",
 }
 
 

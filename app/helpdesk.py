@@ -19,6 +19,8 @@ from .timeutil import now_utc, now_utc_str, parse_utc, to_local, to_utc_str
 STATUSES = {"new": "Neu", "open": "In Arbeit", "wait": "Wartet auf Rückmeldung", "done": "Erledigt"}
 PRIORITIES = {1: "Dringend", 2: "Hoch", 3: "Normal"}
 SOURCES = {"form": "Formular", "manual": "Von Hand", "mail": "E-Mail", "portal": "Portal"}
+MAX_TITLE = 200
+MAX_BODY = 20000
 
 MAX_FILE_BYTES = 10 * 1024 * 1024
 MAX_FILES = 5
@@ -124,6 +126,10 @@ def _footer(conn) -> str:
     return f"\n\n-- \n{_company(conn)}\nBitte die Ticketnummer im Betreff stehen lassen, wenn du antwortest."
 
 
+def load(conn, ticket_id: int):
+    return _load(conn, ticket_id)
+
+
 def _load(conn, ticket_id: int):
     return conn.execute("SELECT t.*, p.name AS project FROM tickets t JOIN projects p ON p.id = t.project_id WHERE t.id = ?",
                         (ticket_id,)).fetchone()
@@ -133,11 +139,13 @@ def _send(conn, ticket_id: int, to: str, subject: str, body: str, what: str,
           attachments: Optional[List] = None) -> bool:
     """Mail verschicken und das Ergebnis im Verlauf vermerken."""
     try:
-        send_mail(conn, to, subject, body, attachments=attachments,
-                  headers={"Auto-Submitted": "auto-generated" if what != "Antwort" else "auto-replied"})
+        mid = send_mail(conn, to, subject, body, attachments=attachments,
+                        headers={"Auto-Submitted": "auto-generated" if what != "Antwort" else "auto-replied"})
     except MailError as e:
         system_message(conn, ticket_id, f"{what} an {to} konnte nicht verschickt werden: {e}")
         return False
+    if mid:  # Antworten auf diese Mail landen im Ticket (siehe mailin.py)
+        conn.execute("UPDATE tickets SET last_mail_id = ? WHERE id = ?", (str(mid).strip(), ticket_id))
     system_message(conn, ticket_id, f"{what} an {to} verschickt")
     return True
 
@@ -161,21 +169,25 @@ def mail_created(ticket_id: int) -> None:
                   "Wir kümmern uns darum und melden uns per Mail.\n\n"
                   f"Betreff: {t['title']}" + _footer(conn), "Eingangsbestätigung")
         if get_setting(conn, "hd_notify_new") == "1":
-            to = _staff_addresses(conn, t)
-            prio = " (DRINGEND)" if t["priority"] == 1 else ""
             first = conn.execute("SELECT body FROM ticket_messages WHERE ticket_id = ? AND kind = 'requester' ORDER BY id LIMIT 1",
                                  (t["id"],)).fetchone()
-            for addr in to:
-                try:
-                    send_mail(conn, addr, f"{tag(t)} Neue Meldung{prio}: {t['title']}",
-                              f"Neue Meldung im Projekt „{t['project']}“ von {t['requester_name'] or 'unbekannt'}"
-                              + (f" <{t['requester_email']}>" if t["requester_email"] else "") + ":\n\n"
-                              + (first["body"] if first else "") + "\n\nIm Zeitmanagement unter Tickets → " + nr,
-                              headers={"Auto-Submitted": "auto-generated"})
-                except MailError as e:
-                    system_message(conn, t["id"], f"Hinweis an {addr} konnte nicht verschickt werden: {e}")
+            notify_staff(conn, t, "Neue Meldung" + (" (DRINGEND)" if t["priority"] == 1 else ""), first["body"] if first else "")
     finally:
         conn.close()
+
+
+def notify_staff(conn, t, what: str, text: str) -> None:
+    """Hinweis-Mail an den Bearbeiter (bzw. den Chef) – z. B. bei neuer Meldung oder Antwort des Melders."""
+    nr = number(t["year"], t["seq"])
+    for addr in _staff_addresses(conn, t):
+        try:
+            send_mail(conn, addr, f"{tag(t)} {what}: {t['title']}",
+                      f"{what} im Projekt „{t['project']}“ von {t['requester_name'] or 'unbekannt'}"
+                      + (f" <{t['requester_email']}>" if t["requester_email"] else "") + ":\n\n"
+                      + text + "\n\nIm Zeitmanagement unter Tickets → " + nr,
+                      headers={"Auto-Submitted": "auto-generated"})
+        except MailError as e:
+            system_message(conn, t["id"], f"Hinweis an {addr} konnte nicht verschickt werden: {e}")
 
 
 def _staff_addresses(conn, t) -> List[str]:

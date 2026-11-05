@@ -5,7 +5,7 @@
 
 const TK = { view: null, projectId: null, q: "", list: [], counts: {}, projects: [], people: [], open: null, detail: null,
              replyKind: "reply", pending: [], onSite: false, tick: null, thumbs: {} };
-const TK_VIEWS = { new: "Neu", mine: "Mir zugewiesen", open: "Alle offenen", wait: "Wartet auf Rückmeldung", done: "Erledigt" };
+const TK_VIEWS = { inbox: "Unzugeordnet", new: "Neu", mine: "Mir zugewiesen", open: "Alle offenen", wait: "Wartet auf Rückmeldung", done: "Erledigt" };
 const TK_ICON = { new: "", mine: "👤 ", open: "📋 ", wait: "⏳ ", done: "✓ " };
 const TK_SRC = { form: "📝 Formular", manual: "✍️ Von Hand", mail: "✉️ E-Mail", portal: "👤 Portal" };
 const TK_STATUS = { new: "Neu", open: "In Arbeit", wait: "Wartet", done: "Erledigt" };
@@ -23,6 +23,7 @@ function tkAge(iso) {
 }
 const tkHm = (sec) => `${Math.floor(sec / 3600)}:${p2(Math.floor(sec / 60) % 60)}`;
 const tkTimes = () => modOn("times");
+const tkBoss = () => isAdmin() || !isTeam();
 
 // ---------- Liste ----------
 async function loadTickets() {
@@ -31,6 +32,8 @@ async function loadTickets() {
     if (saved.startsWith("p:")) TK.projectId = Number(saved.slice(2)); else TK.view = TK_VIEWS[saved] ? saved : (isTeam() ? "mine" : "open");
   }
   if (TK.view === "mine" && !isTeam()) TK.view = "open";
+  if (TK.view === "inbox" && !tkBoss()) TK.view = "open";
+  if (tkBoss() && TK.imapOn == null) { try { TK.imapOn = (await api("helpdesk/imap")).enabled; } catch (e) { TK.imapOn = false; } }
   const [projects, people] = await Promise.all([api("projects"), api("people").catch(() => [])]);
   TK.projects = projects.filter(p => p.kind === "project" && !p.archived);
   TK.people = people;
@@ -41,6 +44,11 @@ async function loadTickets() {
 
 async function refreshTickets() {
   $("tkErr").textContent = "";
+  if (TK.view === "inbox" && TK.projectId == null) {
+    try { const [items, counts] = await Promise.all([api("helpdesk/inbox"), api("tickets/counts")]); TK.inbox = items; TK.counts = counts; }
+    catch (e) { $("tkErr").textContent = e.message; TK.inbox = []; }
+    setTicketBadge(TK.counts); renderTkSide(); renderInbox(); return;
+  }
   const p = new URLSearchParams();
   if (TK.projectId != null) { p.set("project_id", TK.projectId); p.set("view", "open"); } else p.set("view", TK.view);
   if (TK.q) p.set("q", TK.q);
@@ -53,7 +61,7 @@ async function refreshTickets() {
 }
 
 function setTicketBadge(c) {
-  const n = (c && c.new) || 0;
+  const n = ((c && c.new) || 0) + ((c && c.inbox) || 0);
   $("tkBadge").textContent = n; $("tkBadge").classList.toggle("hidden", !n);
 }
 async function refreshTicketBadge() {
@@ -68,6 +76,7 @@ function renderTkSide() {
     `${pre}${label}${n ? `<span class="n ${warn ? "warn" : ""}">${n}</span>` : ""}</a>`;
   let h = "<h4>Tickets</h4>" + views.map(v => link(v, TK_VIEWS[v], v === "done" ? 0 : c[v], v === "new" && c.new > 0,
     v === "new" ? '<span class="dot"></span>' : TK_ICON[v])).join("");
+  if (tkBoss() && (c.inbox || TK.view === "inbox" || TK.imapOn)) h += link("inbox", "Unzugeordnet", c.inbox, c.inbox > 0, "📥 ");
   h += "<h4>Projekte</h4>";
   let last;
   TK.projects.forEach(pj => {
@@ -80,7 +89,7 @@ function renderTkSide() {
   if (!TK.projects.length) h += '<div class="cust">Noch keine Projekte – unter Aufgaben anlegen.</div>';
   $("tkSide").innerHTML = h;
   $$("#tkSide [data-tnav]").forEach(a => a.onclick = () => tkNav(a.dataset.tnav));
-  $("tkViewSel").innerHTML = views.map(v => `<option value="${v}" ${TK.projectId == null && TK.view === v ? "selected" : ""}>${TK_VIEWS[v]}${c[v] && v !== "done" ? " (" + c[v] + ")" : ""}</option>`).join("") +
+  $("tkViewSel").innerHTML = (tkBoss() && (c.inbox || TK.imapOn) ? `<option value="inbox" ${TK.view === "inbox" && TK.projectId == null ? "selected" : ""}>📥 Unzugeordnet${c.inbox ? " (" + c.inbox + ")" : ""}</option>` : "") + views.map(v => `<option value="${v}" ${TK.projectId == null && TK.view === v ? "selected" : ""}>${TK_VIEWS[v]}${c[v] && v !== "done" ? " (" + c[v] + ")" : ""}</option>`).join("") +
     TK.projects.map(pj => `<option value="${pj.id}" ${TK.projectId === pj.id ? "selected" : ""}>${esc((pj.customer ? pj.customer + " · " : "") + pj.name)}</option>`).join("");
 }
 
@@ -131,6 +140,55 @@ function renderTkList() {
     catch (e) { $("tkErr").textContent = e.message; }
   });
 }
+
+// ---------- Posteingang „unzugeordnet“ ----------
+function renderInbox() {
+  $("tkTitle").textContent = "📥 Unzugeordnete Mails";
+  const items = TK.inbox || [];
+  if (!items.length) {
+    $("tkList").innerHTML = `<div class="emptylist">Keine unzugeordneten Mails.<br><span class="small">Mails von Absendern ohne Projekt landen hier –
+      unter Verwaltung → Helpdesk legst du die Absender-Domains fest.</span></div>`;
+    return;
+  }
+  const opts = TK.projects.map(p => `<option value="${p.id}">${esc((p.customer ? p.customer + " · " : "") + p.name)}</option>`).join("");
+  $("tkList").innerHTML = items.map(m => `<div class="inmail" data-in="${m.id}">
+    <div class="row" style="justify-content:space-between"><div><b>${esc(m.subject || "(ohne Betreff)")}</b>
+      <div class="meta"><span>✉️ ${esc(m.from_name ? m.from_name + " <" + m.from_email + ">" : m.from_email || "ohne Absender")}</span><span>${fmtDT(m.received_at)}</span>
+        ${m.files.length ? `<span>📎 ${m.files.length}</span>` : ""}</div></div></div>
+    <div class="reason">${esc(m.reason)}</div>
+    ${m.body ? `<details><summary class="small">Text anzeigen</summary><p class="mailbody">${esc(m.body)}</p></details>` : ""}
+    ${m.files.length ? `<div class="files">${m.files.map(f => `<button type="button" class="file" data-infile="${m.id}/${f.id}" title="${esc(f.name)} herunterladen">
+      <span class="th ${f.mime === "application/pdf" ? "pdf" : ""}">${f.mime === "application/pdf" ? "PDF" : "🖼"}</span><span>${esc(f.name)}<small>${fmtSize(f.size)}</small></span></button>`).join("")}</div>` : ""}
+    ${m.skipped ? `<div class="muted small">Nicht übernommen: ${esc(m.skipped)}</div>` : ""}
+    <div class="row" style="margin-top:8px">
+      ${m.from_email ? `<select data-inproj aria-label="Projekt">${opts}</select>
+      ${m.domain ? `<label class="inline small"><input type="checkbox" data-inremember checked> ${esc(FREEMAIL_JS.includes(m.domain) ? m.from_email : m.domain)} künftig diesem Projekt zuordnen</label>` : ""}
+      <button class="primary" data-inassign>Ticket anlegen</button>` : ""}
+      <button class="danger" data-indiscard>Verwerfen</button></div></div>`).join("");
+  $$("[data-in]").forEach(box => {
+    const id = Number(box.dataset.in);
+    const q = (s) => box.querySelector(s);
+    if (q("[data-inassign]")) q("[data-inassign]").onclick = async () => {
+      $("tkErr").textContent = "";
+      try {
+        const r = await api(`helpdesk/inbox/${id}/assign`, { method: "POST",
+          body: { project_id: Number(q("[data-inproj]").value), remember: !!(q("[data-inremember]") && q("[data-inremember]").checked) } });
+        await refreshTickets();
+        okMsg($("tkErr"), `${r.ticket.number} angelegt` + (r.remembered ? ` – ${r.remembered} wird künftig automatisch zugeordnet.` : "."));
+      } catch (e) { $("tkErr").textContent = e.message; }
+    };
+    q("[data-indiscard]").onclick = async () => {
+      if (!confirm("Diese Mail verwerfen? Sie bleibt im Postfach (Erledigt-Ordner), wird aber kein Ticket.")) return;
+      try { await api(`helpdesk/inbox/${id}/discard`, { method: "POST" }); await refreshTickets(); } catch (e) { $("tkErr").textContent = e.message; }
+    };
+  });
+  $$("[data-infile]").forEach(b => b.onclick = () => {
+    const [iid, fid] = b.dataset.infile.split("/");
+    downloadFile(`api/v1/helpdesk/inbox/${iid}/files/${fid}`, "datei").catch(e => { $("tkErr").textContent = e.message; });
+  });
+}
+const FREEMAIL_JS = ["gmail.com", "googlemail.com", "gmx.de", "gmx.net", "web.de", "t-online.de", "outlook.com", "outlook.de", "hotmail.com",
+  "hotmail.de", "live.de", "yahoo.com", "yahoo.de", "icloud.com", "me.com", "aol.com", "freenet.de", "posteo.de", "mail.de"];
 
 // ---------- neues Ticket ----------
 function tkPeopleOpts(sel, projectId, withNone) {
@@ -391,20 +449,21 @@ async function loadThumbs() {
 // ---------- Verwaltung → Helpdesk ----------
 const HD = { forms: [], settings: null };
 async function loadHelpdeskAdmin() {
-  const [forms, s] = await Promise.all([api("helpdesk/forms"), api("helpdesk/settings")]);
-  HD.forms = forms.forms; HD.settings = s;
+  const [forms, s, im] = await Promise.all([api("helpdesk/forms"), api("helpdesk/settings"), api("helpdesk/imap")]);
+  HD.forms = forms.forms; HD.settings = s; fillImap(im);
   $("hdUrlWarn").classList.toggle("hidden", forms.public_url_set);
   renderHdForms(); fillHdSettings();
 }
 function renderHdForms() {
   const people = (state.users || []).filter(u => u.active);
-  $("hdForms").innerHTML = `<thead><tr><th>Projekt</th><th>Link</th>${isTeam() ? "<th>Bearbeiter</th>" : ""}<th class="num">offen</th><th></th></tr></thead><tbody>` +
+  $("hdForms").innerHTML = `<thead><tr><th>Projekt</th><th>Link</th><th>Absender-Domains</th>${isTeam() ? "<th>Bearbeiter</th>" : ""}<th class="num">offen</th><th></th></tr></thead><tbody>` +
     (HD.forms.length ? HD.forms.map(f => {
       const live = f.token && f.active;
       return `<tr class="${live ? "" : "inactive"}"><td><span class="ptag"><i style="background:${esc(f.project_color)}"></i>${esc(f.project)}</span>
         ${f.customer ? `<span class="muted small">${esc(f.customer)}</span>` : ""}</td>
       <td>${live ? `<div class="linkbox"><code title="${esc(f.url)}">${esc(f.url)}</code><button class="mini" data-hcopy="${f.project_id}">Kopieren</button>
         <a class="btn mini" href="${esc(f.url)}" target="_blank" rel="noopener" title="Formular öffnen">↗</a></div>` : '<span class="muted">kein öffentliches Formular</span>'}</td>
+      <td><input data-hsend="${f.project_id}" value="${esc((f.senders || []).join(", "))}" placeholder="z. B. physio-henze.de" style="width:190px"></td>
       ${isTeam() ? `<td>${f.token ? `<select data-hwho="${f.project_id}"><option value="0">– Chef –</option>${people.map(u => `<option value="${u.id}" ${u.id === f.assignee_id ? "selected" : ""}>${esc(u.display_name)}</option>`).join("")}</select>` : "—"}</td>` : ""}
       <td class="num">${f.open || ""}</td>
       <td class="nowrap">${!f.token ? `<button class="mini primary" data-hon="${f.project_id}">Formular aktivieren</button>` :
@@ -420,6 +479,15 @@ function renderHdForms() {
   $$("[data-hoff]").forEach(b => b.onclick = () => confirm("Formular abschalten? Der Link funktioniert dann nicht mehr.") && put(b.dataset.hoff, { active: false }));
   $$("[data-hnew]").forEach(b => b.onclick = () => confirm("Neuen Link erzeugen? Der alte funktioniert dann nicht mehr – z. B. auf Aushängen.") && put(b.dataset.hnew, { regenerate: true }));
   $$("[data-hwho]").forEach(s => s.onchange = () => put(s.dataset.hwho, { assignee_id: Number(s.value) }));
+  $$("[data-hsend]").forEach(inp => inp.onchange = async () => {
+    $("hdFormsErr").textContent = "";
+    try {
+      const r = await api("helpdesk/senders/" + inp.dataset.hsend, { method: "PUT", body: { patterns: inp.value.split(/[,;\s]+/).filter(Boolean) } });
+      inp.value = r.senders.join(", ");
+      const f = HD.forms.find(x => x.project_id === r.project_id); if (f) f.senders = r.senders;
+      okMsg($("hdFormsErr"), "Absender-Domains gespeichert.");
+    } catch (e) { $("hdFormsErr").textContent = e.message; }
+  });
   $$("[data-hcopy]").forEach(b => b.onclick = () => {
     const f = HD.forms.find(x => x.project_id === Number(b.dataset.hcopy));
     try { navigator.clipboard.writeText(f.url); okMsg($("hdFormsErr"), "Link kopiert."); } catch (e) { prompt("Link kopieren:", f.url); }
@@ -441,6 +509,42 @@ $("hdSave").onclick = async () => {
       privacy_url: $("hdPrivacy").value.trim(), retention_months: Number($("hdRetention").value) } });
     fillHdSettings(); okMsg($("hdErr"), "Gespeichert.");
   } catch (e) { $("hdErr").textContent = e.message; }
+};
+
+function fillImap(im) {
+  HD.imap = im; TK.imapOn = im.enabled;
+  $("imOn").checked = im.enabled; $("imHost").value = im.host; $("imPort").value = im.port; $("imSec").value = im.security;
+  $("imUser").value = im.user; $("imPw").value = ""; $("imPw").placeholder = im.password_set ? "gespeichert – leer lassen = unverändert" : "";
+  $("imFolder").value = im.folder; $("imDone").value = im.done_folder; $("imInterval").value = im.interval;
+  $("imState").innerHTML = !im.enabled ? '<span class="muted">aus</span>' :
+    im.last_error ? `<span class="err">⚠ ${esc(im.last_error)}</span>` :
+    im.last_run ? `<span class="ok">✓ zuletzt abgerufen ${fmtDT(im.last_run)}</span>${im.last_result ? ` <span class="muted">(${esc(imResult(im.last_result))})</span>` : ""}` : '<span class="muted">noch nicht abgerufen</span>';
+}
+function imResult(s) {
+  const de = { ticket: "neu", reply: "Antworten", inbox: "unzugeordnet", ignored: "ignoriert", seen: "schon bekannt", errors: "Fehler" };
+  return s.replace(/(\d+) (\w+)/g, (m, n, k) => `${n} ${de[k] || k}`);
+}
+async function saveImap(extra = {}) {
+  const body = { host: $("imHost").value.trim(), port: Number($("imPort").value) || 993, security: $("imSec").value,
+                 user: $("imUser").value.trim(), folder: $("imFolder").value.trim() || "INBOX",
+                 done_folder: $("imDone").value.trim() || "Zeitmanagement/Erledigt", interval: Number($("imInterval").value) || 2,
+                 enabled: $("imOn").checked, ...extra };
+  if ($("imPw").value) body.password = $("imPw").value;
+  fillImap(await api("helpdesk/imap", { method: "PATCH", body }));
+}
+$("imSec").onchange = () => { $("imPort").value = $("imSec").value === "ssl" ? 993 : 143; };
+$("imSave").onclick = async () => { $("imErr").textContent = ""; try { await saveImap(); okMsg($("imErr"), "Gespeichert."); } catch (e) { $("imErr").textContent = e.message; } };
+$("imTest").onclick = async () => {
+  $("imErr").textContent = "Teste …";
+  try { await saveImap({ enabled: HD.imap ? HD.imap.enabled && $("imOn").checked : false }); okMsg($("imErr"), (await api("helpdesk/imap/test", { method: "POST" })).message); }
+  catch (e) { $("imErr").textContent = e.message; }
+};
+$("imRun").onclick = async () => {
+  $("imErr").textContent = "Rufe ab …";
+  try { const r = await api("helpdesk/imap/run", { method: "POST" }); fillImap(r.imap);
+        okMsg($("imErr"), `Fertig: ${r.result.ticket} neue Tickets, ${r.result.reply} Antworten, ${r.result.inbox} unzugeordnet, ${r.result.ignored} ignoriert.`);
+        refreshTicketBadge(); }
+  catch (e) { $("imErr").textContent = e.message; }
 };
 
 // ---------- Ereignisse ----------

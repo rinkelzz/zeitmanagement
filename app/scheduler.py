@@ -40,6 +40,15 @@ def run_once() -> None:
     except Exception as e:  # noqa: BLE001
         print(f"[zeitmanagement] Helpdesk-Aufräumen FEHLER: {e}", flush=True)
     try:
+        from . import mailin
+        r = mailin.run_due()
+        if r and r.get("error"):
+            print(f"[zeitmanagement] Mail-Abruf: {r['error']}", flush=True)
+        elif r and any(r[k] for k in ("ticket", "reply", "inbox")):
+            print(f"[zeitmanagement] Mail-Abruf: {r['ticket']} neu, {r['reply']} Antworten, {r['inbox']} unzugeordnet", flush=True)
+    except Exception as e:  # noqa: BLE001
+        print(f"[zeitmanagement] Mail-Abruf FEHLER: {e}", flush=True)
+    try:
         from . import backup
         b = backup.run_due()
         if b:

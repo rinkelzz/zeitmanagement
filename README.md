@@ -10,8 +10,8 @@ Aufgaben, Projektzeiten, Kalender, Dienstplan und Helpdesk für kleine Firmen, P
 auf der eigenen Synology NAS, mit eigenem Fenster in DSM. Wer in DSM angemeldet ist, ist es auch hier.
 Die Daten bleiben im Haus.
 
-> **Stand:** Version 0.7 – Aufgaben, Kalender mit iCal-Abo fürs Handy, Dienstplan mit Wochen-PDF, Projektzeiten
-> mit Auswertung als PDF, Excel und CSV und neu ein **Helpdesk mit Meldeformular und Zeit pro Ticket**. Jedes Modul lässt
+> **Stand:** Version 0.8 – Aufgaben, Kalender mit iCal-Abo fürs Handy, Dienstplan mit Wochen-PDF, Projektzeiten
+> mit Auswertung als PDF, Excel und CSV und ein **Helpdesk mit Meldeformular, E-Mail-Postfach und Zeit pro Ticket**. Jedes Modul lässt
 > sich einzeln abschalten – siehe [Fahrplan](#fahrplan).
 
 ![Aufgaben](docs/screenshots/aufgaben.png)
@@ -48,7 +48,8 @@ Die Daten bleiben im Haus.
   Besetzung pro Tag, „Vorwoche übernehmen“, Veröffentlichen mit Mail an alle und **Wochenplan als PDF** zum Aushängen.
 - **Projektzeiten** per Stoppuhr (auch direkt an der Aufgabe mit ▶) oder nachgetragen, mit Kennzeichen „vor Ort“.
   Die laufende Stoppuhr steht immer in der Kopfzeile.
-- **Helpdesk:** Meldeformular pro Projekt (mit Anhängen), Tickets mit Verlauf, Antworten per Mail, interne Notizen
+- **Helpdesk:** Meldeformular pro Projekt (mit Anhängen) und **E-Mail-Postfach** (IMAP), Tickets mit Verlauf,
+  Antworten per Mail (auch zurück ins Ticket), interne Notizen
   und **Stoppuhr direkt am Ticket** – die Zeit landet auf dem Projekt des Kunden.
 - **Module einzeln abschaltbar** – z. B. nur Helpdesk oder nur Dienstplan.
 - **Auswertung** nach Kunde, Projekt, Aufgabe, Mitarbeiter oder Tag – als **PDF, Excel und CSV**, mit Firmenname und Logo.
@@ -241,8 +242,28 @@ ohne Mails.
 
 <img src="docs/screenshots/meldeformular-handy.png" alt="Meldeformular am Handy" width="300"> <img src="docs/screenshots/tickets-handy.png" alt="Tickets am Handy" width="300">
 
-> **Kommt als Nächstes:** Meldungen per **E-Mail-Postfach** (IMAP, Antworten landen im Ticket) und ein
-> **Melder-Portal** mit „Meine Tickets“.
+### Meldungen per E-Mail
+
+Unter **Verwaltung → Helpdesk → E-Mail-Postfach** trägst du ein Postfach ein (z. B. `support@deinefirma.de`, IMAP mit
+SSL oder STARTTLS). Die App ruft es alle paar Minuten ab:
+
+- **Neue Mail** von einem Melder, der schon einmal gemeldet hat, oder aus einer **Absender-Domain** des Projekts
+  (Spalte in der Tabelle „Formular-Links pro Projekt“, z. B. `physio-henze.de`) → neues Ticket mit Eingangsbestätigung.
+- **Antwort** mit `[#T-2026-0042]` im Betreff (oder auf unsere letzte Mail) vom Melder bzw. aus seiner Domain →
+  landet im Ticket, ohne den zitierten alten Text. Wartende oder erledigte Tickets sind danach wieder „In Arbeit“.
+- **Alles andere** → Tickets → **📥 Unzugeordnet**: Projekt wählen, „Ticket anlegen“ – auf Wunsch merkt sich die App
+  die Domain fürs nächste Mal. Oder „Verwerfen“.
+- Abwesenheitsnotizen, Rückläufer und Newsletter werden ignoriert. Verarbeitete Mails wandern in den Ordner
+  `Zeitmanagement/Erledigt`, nichts wird gelöscht.
+
+| | |
+|---|---|
+| ![Unzugeordnete Mails](docs/screenshots/unzugeordnet.png) | ![E-Mail-Postfach](docs/screenshots/postfach.png) |
+
+Tipp: Am besten ein eigenes Postfach nur für den Support anlegen – die App verschiebt **alle** Mails aus dem
+Abruf-Ordner.
+
+> **Kommt als Nächstes:** ein **Melder-Portal** mit „Meine Tickets“ und Statuslink.
 
 ## Module
 
@@ -264,7 +285,7 @@ aus** und muss einmal eingeschaltet werden.
 | **0.5** ✅ | **Kalender:** Monat/Woche/Tag, Serien, Teilnehmer, Aufgaben im Kalender, iCal-Abo fürs Handy |
 | **0.6** ✅ | **Dienstplan:** Wochenraster, Schichtarten, Urlaub/Krank, Besetzung, Vorwoche übernehmen, Veröffentlichen mit Mail, Wochen-PDF, Schichten im Kalender |
 | **0.7** ✅ | **Helpdesk:** Meldeformular pro Projekt mit Anhängen, Tickets mit Verlauf, Antworten per Mail, interne Notizen, Zeit pro Ticket, Aufbewahrungsfrist · **Module** an/aus |
-| 0.8 | Helpdesk: Meldungen per E-Mail-Postfach (IMAP), Antworten landen im Ticket |
+| **0.8** ✅ | **Helpdesk per E-Mail:** IMAP-Postfach, Absender-Domains je Projekt, Posteingang „Unzugeordnet“, Antworten landen im Ticket |
 | 0.9 | Helpdesk: Melder-Portal mit „Meine Tickets“, Statuslink; Kategorien, Textbausteine, Auswertung pro Ticket |
 
 ## Installation auf der Synology
@@ -382,7 +403,8 @@ for DSM users. The user interface is German.
   shifts in the calendar and the iCal feed.
 - Helpdesk (0.7): a public report form per project (with PNG/JPG/PDF attachments, rate limited), tickets with history,
   replies by email, internal notes, a stopwatch per ticket that books time on the customer's project, and a retention
-  period for closed tickets. Every module (tasks, time tracking, calendar, shift planning, helpdesk) can be switched off.
+  period for closed tickets. Since 0.8 also an IMAP mailbox: new mails become tickets (matched by sender domain per
+  project, unknown senders go to an inbox), replies with the ticket number land in the ticket. Every module (tasks, time tracking, calendar, shift planning, helpdesk) can be switched off.
 
 Install: download the `.spk` from [Releases](https://github.com/rinkelzz/zeitmanagement/releases) →
 Package Center → Manual Install. Security notes: [SECURITY.md](SECURITY.md). License: MIT.
