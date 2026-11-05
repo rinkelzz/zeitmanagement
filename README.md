@@ -6,12 +6,13 @@
 [![Release](https://img.shields.io/github/v/release/rinkelzz/zeitmanagement?include_prereleases)](https://github.com/rinkelzz/zeitmanagement/releases)
 [![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-blue.svg)](LICENSE)
 
-Aufgaben, Projektzeiten, Kalender und Dienstplan für kleine Firmen, Praxen und Einzelpersonen – als Paket
+Aufgaben, Projektzeiten, Kalender, Dienstplan und Helpdesk für kleine Firmen, Praxen und Einzelpersonen – als Paket
 auf der eigenen Synology NAS, mit eigenem Fenster in DSM. Wer in DSM angemeldet ist, ist es auch hier.
 Die Daten bleiben im Haus.
 
-> **Stand:** Version 0.6 – Aufgaben, Kalender mit iCal-Abo fürs Handy, **Dienstplan mit Wochen-PDF** und Projektzeiten
-> mit Auswertung als PDF, Excel und CSV. Damit sind alle geplanten Ausbaustufen da – siehe [Fahrplan](#fahrplan).
+> **Stand:** Version 0.7 – Aufgaben, Kalender mit iCal-Abo fürs Handy, Dienstplan mit Wochen-PDF, Projektzeiten
+> mit Auswertung als PDF, Excel und CSV und neu ein **Helpdesk mit Meldeformular und Zeit pro Ticket**. Jedes Modul lässt
+> sich einzeln abschalten – siehe [Fahrplan](#fahrplan).
 
 ![Aufgaben](docs/screenshots/aufgaben.png)
 
@@ -22,6 +23,8 @@ Die Daten bleiben im Haus.
 - [Kalender und Abo fürs Handy](#kalender-und-abo-fürs-handy)
 - [Dienstplan](#dienstplan)
 - [Projektzeiten und Auswertung](#projektzeiten-und-auswertung)
+- [Helpdesk](#helpdesk)
+- [Module](#module)
 - [Fahrplan](#fahrplan)
 - [Installation auf der Synology](#installation-auf-der-synology)
 - [Updates über das Paket-Zentrum](#updates-über-das-paket-zentrum)
@@ -45,6 +48,9 @@ Die Daten bleiben im Haus.
   Besetzung pro Tag, „Vorwoche übernehmen“, Veröffentlichen mit Mail an alle und **Wochenplan als PDF** zum Aushängen.
 - **Projektzeiten** per Stoppuhr (auch direkt an der Aufgabe mit ▶) oder nachgetragen, mit Kennzeichen „vor Ort“.
   Die laufende Stoppuhr steht immer in der Kopfzeile.
+- **Helpdesk:** Meldeformular pro Projekt (mit Anhängen), Tickets mit Verlauf, Antworten per Mail, interne Notizen
+  und **Stoppuhr direkt am Ticket** – die Zeit landet auf dem Projekt des Kunden.
+- **Module einzeln abschaltbar** – z. B. nur Helpdesk oder nur Dienstplan.
 - **Auswertung** nach Kunde, Projekt, Aufgabe, Mitarbeiter oder Tag – als **PDF, Excel und CSV**, mit Firmenname und Logo.
 - **Projektbudget** in Stunden mit Warn-Mail bei 80 % und 100 %, **„abgerechnet“-Kennzeichen** mit Rechnungsvermerk –
   abgerechnete Zeiten sind gesperrt.
@@ -199,6 +205,54 @@ Der Chef sieht alles.
 
 ![PDF-Bericht](docs/screenshots/bericht-pdf.png)
 
+## Helpdesk
+
+![Tickets](docs/screenshots/tickets.png)
+
+Der Reiter **Tickets** sammelt Problemmeldungen – von den Mitarbeitern deiner Kunden, wenn du IT-Dienstleister bist,
+oder im eigenen Betrieb (z. B. an die Haustechnik). Jedes Ticket gehört zu einem **Projekt**: beim Dienstleister ist
+das der Kunde („IT-Support Praxis“), intern der Bereich („EDV“, „Haustechnik“). Mitarbeiter sehen nur die Tickets
+ihrer Projekte, der Chef alle.
+
+**Meldeformular:** Unter **Verwaltung → Helpdesk** bekommt jedes Projekt per Klick einen eigenen Link, z. B.
+`https://zeit.meinedomain.de/melden/k7Qx2mAb9`. Wer ihn hat, kann ohne Anmeldung ein Problem melden – mit
+Dringlichkeit und bis zu fünf Bildschirmfotos oder PDFs. Den Link schickst du dem Kunden oder hängst ihn ins Intranet.
+Dafür muss die App über den [Reverse Proxy](#von-unterwegs-erreichbar-machen-reverse-proxy) mit https:// erreichbar
+sein. „Neuer Link“ macht den alten ungültig.
+
+| | |
+|---|---|
+| ![Meldeformular](docs/screenshots/meldeformular.png) | ![Formular-Links und Einstellungen](docs/screenshots/helpdesk-verwaltung.png) |
+
+Der Melder bekommt eine **Eingangsbestätigung** mit Ticketnummer (`T-2026-0042`), der Bearbeiter des Formulars einen
+Hinweis (sonst der Chef). In der **Ticketansicht** antwortest du per Mail (mit Anhängen) oder schreibst **interne
+Notizen**, die der Melder nie sieht. Status, Priorität, Bearbeiter und Projekt änderst du oben, „Senden + Erledigt“
+schließt das Ticket mit einer letzten Antwort.
+
+![Ticketansicht](docs/screenshots/ticket.png)
+
+**Zeit pro Ticket:** Mit ▶ in der Liste oder **Start** in der Ticketansicht läuft die Stoppuhr auf das Projekt des
+Tickets – mit „vor Ort“, wie gewohnt. Ein neues Ticket ist dann automatisch „in Arbeit“ und gehört dir. Die Zeiten
+stehen am Ticket, unter **Zeiten** und in der **Auswertung**.
+
+Erledigte Tickets werden nach einer einstellbaren Frist (Standard 12 Monate) mit Verlauf und Anhängen gelöscht; die
+gebuchten Zeiten bleiben, mit der Ticketnummer in der Notiz. Ohne eingerichteten Mailserver funktioniert alles – nur
+ohne Mails.
+
+<img src="docs/screenshots/meldeformular-handy.png" alt="Meldeformular am Handy" width="300"> <img src="docs/screenshots/tickets-handy.png" alt="Tickets am Handy" width="300">
+
+> **Kommt als Nächstes:** Meldungen per **E-Mail-Postfach** (IMAP, Antworten landen im Ticket) und ein
+> **Melder-Portal** mit „Meine Tickets“.
+
+## Module
+
+![Module](docs/screenshots/module.png)
+
+Unter **Verwaltung → Module** schaltest du Aufgaben, Projektzeiten, Kalender, Dienstplan und Helpdesk einzeln an
+oder aus. Abgeschaltete Bereiche verschwinden aus Menü, Kalender, Abo und Mails – die Daten bleiben erhalten. So
+lässt sich die App auch nur als Helpdesk oder nur als Dienstplan nutzen. Der **Helpdesk ist nach dem Update auf 0.7
+aus** und muss einmal eingeschaltet werden.
+
 ## Fahrplan
 
 | Version | Inhalt |
@@ -209,6 +263,9 @@ Der Chef sieht alles.
 | **0.4** ✅ | Wiederkehrende Aufgaben, Checklisten, Erinnerung zur Uhrzeit, Projektbudget mit Warnung, „abgerechnet“ mit Sperre |
 | **0.5** ✅ | **Kalender:** Monat/Woche/Tag, Serien, Teilnehmer, Aufgaben im Kalender, iCal-Abo fürs Handy |
 | **0.6** ✅ | **Dienstplan:** Wochenraster, Schichtarten, Urlaub/Krank, Besetzung, Vorwoche übernehmen, Veröffentlichen mit Mail, Wochen-PDF, Schichten im Kalender |
+| **0.7** ✅ | **Helpdesk:** Meldeformular pro Projekt mit Anhängen, Tickets mit Verlauf, Antworten per Mail, interne Notizen, Zeit pro Ticket, Aufbewahrungsfrist · **Module** an/aus |
+| 0.8 | Helpdesk: Meldungen per E-Mail-Postfach (IMAP), Antworten landen im Ticket |
+| 0.9 | Helpdesk: Melder-Portal mit „Meine Tickets“, Statuslink; Kategorien, Textbausteine, Auswertung pro Ticket |
 
 ## Installation auf der Synology
 
@@ -305,7 +362,7 @@ Die SPK baut `./synology/build_spk.sh` (lädt die Abhängigkeiten für Python 3.
 ## English
 
 **Zeitmanagement** is a self-hosted package for Synology NAS (DSM 7) for small businesses, medical practices and
-individuals: tasks, project time tracking, calendar and shift planning – in its own DSM window with single sign-on
+individuals: tasks, project time tracking, calendar, shift planning and a helpdesk – in its own DSM window with single sign-on
 for DSM users. The user interface is German.
 
 - One noarch package for Intel/AMD and ARM, no native libraries; uses the NAS's Python 3.8–3.13.
@@ -323,6 +380,9 @@ for DSM users. The user interface is German.
 - Shift planning (0.6): weekly roster (employees × days) with configurable shift types, absences, weekly hours and
   daily staffing, copy previous week, publish with email to everyone, landscape PDF for the notice board, and published
   shifts in the calendar and the iCal feed.
+- Helpdesk (0.7): a public report form per project (with PNG/JPG/PDF attachments, rate limited), tickets with history,
+  replies by email, internal notes, a stopwatch per ticket that books time on the customer's project, and a retention
+  period for closed tickets. Every module (tasks, time tracking, calendar, shift planning, helpdesk) can be switched off.
 
 Install: download the `.spk` from [Releases](https://github.com/rinkelzz/zeitmanagement/releases) →
 Package Center → Manual Install. Security notes: [SECURITY.md](SECURITY.md). License: MIT.

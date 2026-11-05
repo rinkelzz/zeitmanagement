@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Problem melden</title>
+<link rel="icon" href="../static/icon.png">
+<link rel="stylesheet" href="../static/app.css?v={{v}}">
+<script src="../static/theme.js?v={{v}}"></script>
+</head>
+<body class="public">
+<div class="pub">
+  <div class="pubhead">
+    <span class="logo" id="pLogoTxt"></span><img id="pLogo" class="pubLogo hidden" alt="">
+    <div><b id="pCompany"></b><small id="pFor"></small></div>
+  </div>
+
+  <form class="card" id="pForm" novalidate>
+    <div><h1>Problem melden</h1>
+      <p class="muted" style="margin:6px 0 0">Beschreibe kurz, was nicht funktioniert. Du bekommst eine Bestätigung mit Ticketnummer per Mail.</p></div>
+    <div class="g2">
+      <label>Dein Name * <input id="fName" maxlength="100" autocomplete="name" required></label>
+      <label>E-Mail * <input id="fMail" type="email" maxlength="200" autocomplete="email" required></label>
+    </div>
+    <label>Telefon (für Rückfragen, optional) <input id="fPhone" maxlength="50" autocomplete="tel" placeholder="z. B. 05371 1234-12"></label>
+    <label>Worum geht es? * <input id="fTitle" maxlength="200" required placeholder="z. B. Drucker druckt nur leere Seiten"></label>
+    <label>Beschreibung * <textarea id="fBody" maxlength="20000" required placeholder="Was passiert genau? Seit wann? An welchem Gerät?"></textarea></label>
+    <div><div class="muted small" style="margin-bottom:6px">Wie dringend?</div>
+      <div class="urg">
+        <label class="modeopt on"><input type="radio" name="urg" value="0" checked><span>Normal</span><small>Kann bis morgen warten</small></label>
+        <label class="modeopt"><input type="radio" name="urg" value="1"><span>Dringend</span><small>Arbeit steht still</small></label>
+      </div></div>
+    <div id="fFilesBox" class="hidden"><div class="muted small" style="margin-bottom:6px">Bildschirmfotos oder Dateien (optional)</div>
+      <label class="drop" id="fDrop">📎 Dateien hierher ziehen oder <b>auswählen</b><br><span class="small" id="fFilesInfo"></span>
+        <input type="file" id="fFiles" multiple accept="image/png,image/jpeg,application/pdf" class="hidden"></label>
+      <div class="flist" id="fList"></div></div>
+    <div class="hint hidden" id="fHint"><span>🔒</span><span id="fHintText"></span></div>
+    <input class="hp" id="fWebsite" tabindex="-1" autocomplete="off" aria-hidden="true" name="website">
+    <label class="inline small hidden" id="fPrivacyWrap"><input type="checkbox" id="fPrivacy"> <span>Ich habe die <a id="fPrivacyLink" target="_blank" rel="noopener noreferrer">Datenschutzhinweise</a> gelesen. *</span></label>
+    <div class="err" id="fErr"></div>
+    <button class="primary big" id="fSend" type="submit" style="justify-self:start">Meldung absenden</button>
+  </form>
+
+  <section class="card hidden" id="pDone">
+    <div class="empty" style="padding:28px 10px">
+      <div class="big">✅</div>
+      <h2>Danke, deine Meldung ist angekommen</h2>
+      <p>Ticketnummer: <b id="pNr"></b></p>
+      <p id="pDoneMail">Eine Bestätigung ist per Mail unterwegs. Bitte gib die Nummer an, wenn du nachfragst.</p>
+      <p class="err" id="pUpErr"></p>
+      <p><button id="pAgain">Weitere Meldung</button></p>
+    </div>
+  </section>
+
+  <section class="card hidden" id="pGone"><div class="empty"><div class="big">🔗</div><h2>Dieses Formular gibt es nicht (mehr)</h2>
+    <p>Bitte frag nach dem aktuellen Link.</p></div></section>
+
+  <div class="pubfoot"><span id="pFoot"></span></div>
+</div>
+<script src="../static/melden.js?v={{v}}"></script>
+</body>
+</html>

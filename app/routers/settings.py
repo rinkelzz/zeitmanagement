@@ -4,12 +4,13 @@ import io
 import re
 import sqlite3
 from datetime import date, timedelta
-from typing import Optional
+from typing import Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
+from .. import modules as mods
 from .. import portcfg
 from ..config import MODES, THEMES, settings as app_settings
 from ..csvsafe import row as safe_row
@@ -39,6 +40,7 @@ class SettingsIn(BaseModel):
     smtp_from_name: Optional[str] = Field(None, max_length=100)
     reminders_enabled: Optional[bool] = Field(None, description="Tägliche Erinnerungs-Mail an alle mit E-Mail-Adresse")
     reminder_hour: Optional[int] = Field(None, ge=0, le=23, description="ab dieser Stunde wird verschickt")
+    modules: Optional[Dict[str, bool]] = Field(None, description="Module an/aus: tasks, times, calendar, roster, helpdesk")
 
 
 ADMIN_ONLY = ("smtp_", "dsm_url", "public_url_env")
@@ -67,6 +69,8 @@ def settings_out(conn) -> dict:
         "smtp_from_name": get_setting(conn, "smtp_from_name"),
         "reminders_enabled": get_setting(conn, "reminders_enabled") == "1",
         "reminder_hour": int(get_setting(conn, "reminder_hour") or 7),
+        "modules": mods.all_states(conn),
+        "module_names": mods.MODULES,
     }
 
 
@@ -125,6 +129,8 @@ def update_settings(data: SettingsIn, admin=Depends(admin_user), conn: sqlite3.C
         set_setting(conn, "reminders_enabled", "1" if data.reminders_enabled else "0")
     if changes.get("reminder_hour") is not None:
         set_setting(conn, "reminder_hour", str(data.reminder_hour))
+    if data.modules is not None:
+        mods.set_states(conn, data.modules)
     if data.smtp_password:  # leer = unverändert
         set_setting(conn, "smtp_password", data.smtp_password)
     if "public_url" in changes:
@@ -196,7 +202,7 @@ def reminder_test(user=Depends(current_user), conn: sqlite3.Connection = Depends
 
 # --- Änderungsprotokoll -------------------------------------------------------
 
-AUDIT_CATEGORIES = {"aufgaben": "Aufgaben", "kalender": "Kalender", "dienstplan": "Dienstplan", "zeiten": "Zeiten", "projekte": "Projekte & Kunden", "anmeldung": "Anmeldung",
+AUDIT_CATEGORIES = {"aufgaben": "Aufgaben", "kalender": "Kalender", "dienstplan": "Dienstplan", "helpdesk": "Helpdesk", "zeiten": "Zeiten", "projekte": "Projekte & Kunden", "anmeldung": "Anmeldung",
                     "benutzer": "Benutzer", "einstellungen": "Einstellungen", "sicherung": "Datensicherung"}
 AUDIT_ACTIONS = {
     "task_created": ("aufgaben", "Aufgabe angelegt"),
@@ -237,6 +243,15 @@ AUDIT_ACTIONS = {
     "user_admin_dsm": ("benutzer", "Chef-Rechte per DSM"),
     "user_updated": ("benutzer", "Benutzer geändert"),
     "settings_updated": ("einstellungen", "Einstellungen geändert"),
+    "ticket_created": ("helpdesk", "Ticket angelegt"),
+    "ticket_updated": ("helpdesk", "Ticket geändert"),
+    "ticket_status": ("helpdesk", "Ticket-Status geändert"),
+    "ticket_replied": ("helpdesk", "Antwort an Melder"),
+    "ticket_note": ("helpdesk", "Interne Notiz"),
+    "ticket_deleted": ("helpdesk", "Ticket gelöscht"),
+    "tickets_purged": ("helpdesk", "Alte Tickets gelöscht"),
+    "helpdesk_form": ("helpdesk", "Meldeformular geändert"),
+    "helpdesk_settings": ("helpdesk", "Helpdesk-Einstellungen geändert"),
     "port_changed": ("einstellungen", "Port geändert"),
     "mail_test": ("einstellungen", "Testmail"),
     "export_csv": ("einstellungen", "CSV-Export"),

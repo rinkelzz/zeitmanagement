@@ -83,6 +83,8 @@ def run_due(conn: sqlite3.Connection, now_local: Optional[datetime] = None) -> L
     now_local = now_local or to_local(now_utc())
     if get_setting(conn, "reminders_enabled") != "1" or not smtp_config(conn)["host"]:
         return []
+    if get_setting(conn, "module_tasks") != "1":  # Aufgaben abgeschaltet → keine Erinnerungen
+        return []
     if now_local.hour < int(get_setting(conn, "reminder_hour") or 7):
         return []
     today = now_local.date().isoformat()
@@ -125,6 +127,8 @@ def run_timed(conn: sqlite3.Connection, now_local: Optional[datetime] = None) ->
     """Erinnerungen zur Uhrzeit verschicken (vom Zeitplan jede Minute aufgerufen)."""
     now_local = now_local or to_local(now_utc())
     if get_setting(conn, "reminders_enabled") != "1" or not smtp_config(conn)["host"]:
+        return []
+    if get_setting(conn, "module_tasks") != "1":  # Aufgaben abgeschaltet → keine Erinnerungen
         return []
     stamp = now_local.strftime("%Y-%m-%d %H:%M")
     rows = conn.execute(

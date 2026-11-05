@@ -217,6 +217,6 @@ def people(user=Depends(current_user), conn: sqlite3.Connection = Depends(get_db
     """Aktive Benutzer mit Namen – für Zuständige und Mitglieder (nur Team-Modus, sonst nur man selbst)."""
     if not is_team(conn):
         return [{"id": user["id"], "username": user["username"], "display_name": user["display_name"]}]
-    return [{"id": r["id"], "username": r["username"], "display_name": r["display_name"]}
-            for r in conn.execute("SELECT id, username, display_name FROM users WHERE active = 1 ORDER BY display_name COLLATE NOCASE")]
+    return [{"id": r["id"], "username": r["username"], "display_name": r["display_name"], "is_admin": bool(r["is_admin"])}
+            for r in conn.execute("SELECT id, username, display_name, is_admin FROM users WHERE active = 1 ORDER BY display_name COLLATE NOCASE")]
 

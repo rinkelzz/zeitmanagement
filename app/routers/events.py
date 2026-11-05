@@ -10,7 +10,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from .. import calendar_core as cal
-from .. import ical, recur, roster
+from .. import ical, modules, recur, roster
 from ..access import check_assignees, get_project
 from ..config import settings
 from ..db import audit, get_db, get_setting, is_team
@@ -101,12 +101,14 @@ def list_events(
     if to < from_ or (to - from_).days > 62:
         raise HTTPException(400, "Zeitraum ungültig (höchstens zwei Monate)")
     return {"events": cal.load_range(conn, user, from_, to),
-            "tasks": cal.tasks_in_range(conn, user, from_, to) if with_tasks else [],
+            "tasks": cal.tasks_in_range(conn, user, from_, to) if with_tasks and modules.enabled(conn, "tasks") else [],
             "shifts": _own_shifts(conn, user, from_, to)}
 
 
 def _own_shifts(conn, user, d_from: date, d_to: date):
     """Eigene Schichten – im Team nur aus veröffentlichten Wochen, allein immer."""
+    if not modules.enabled(conn, "roster"):
+        return []
     return roster.shifts_for_user(conn, user["id"], d_from, d_to, boss=not is_team(conn))
 
 
@@ -270,7 +272,8 @@ def feed(token: str, request: Request, conn: sqlite3.Connection = Depends(get_db
     names = {r[0]: r[1] for r in conn.execute("SELECT id, display_name FROM users")}
     events = [{**dict(r), "exceptions": exc.get(r["id"], set()), "attendees": [names.get(i, "?") for i in att.get(r["id"], [])]}
               for r in rows]
-    tasks = cal.tasks_in_range(conn, user, since, today_local() + timedelta(days=365)) if row["with_tasks"] else []
+    tasks = (cal.tasks_in_range(conn, user, since, today_local() + timedelta(days=365))
+             if row["with_tasks"] and modules.enabled(conn, "tasks") else [])
     company = get_setting(conn, "company_name")
     name = "Zeitmanagement" + (f" · {company}" if company else "")
     shifts = _own_shifts(conn, user, since, today_local() + timedelta(days=365))

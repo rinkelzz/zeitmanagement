@@ -29,6 +29,15 @@ Unterstützt wird jeweils die neueste Version unter [Releases](https://github.co
 - **Kalender-Abo:** Der Link enthält einen zufälligen 256-Bit-Schlüssel, gespeichert wird nur sein SHA-256-Hash. Der Link
   gibt nur die Termine und Aufgaben dieser Person heraus, nur lesend. Neu erzeugen oder sperren macht ihn sofort ungültig.
 
+- **Meldeformular (Helpdesk):** Der Link enthält einen zufälligen Schlüssel (72 Bit) und funktioniert nur, solange
+  das Modul und das Formular aktiv sind – sonst 404. Höchstens 5 Meldungen pro Absenderadresse und 20 pro Formular in
+  15 Minuten, verstecktes Feld gegen Spam-Programme. Anhänge (PNG, JPG, PDF) werden am **Inhalt** erkannt, SVG/HTML
+  abgelehnt, Größe schon beim Empfang begrenzt; hochladen lässt sich nur 30 Minuten lang mit dem Schlüssel aus der
+  Antwort. Heruntergeladen werden Anhänge nur angemeldet, immer als Anhang mit `X-Content-Type-Options: nosniff` und
+  `Content-Security-Policy: sandbox`.
+- **Mails aus dem Helpdesk** tragen `Auto-Submitted`, damit Abwesenheitsnotizen keine Mail-Schleifen auslösen.
+  Zeilenumbrüche in Betreff und Kopfzeilen werden entfernt (keine Header-Injection).
+
 ## Hinweise für den Betrieb
 
 - Die App nur per **HTTPS** (Reverse Proxy von DSM mit Zertifikat) nach außen freigeben, nie den Port
@@ -39,6 +48,9 @@ Unterstützt wird jeweils die neueste Version unter [Releases](https://github.co
   den Paketbenutzer. Am besten ein eigenes Mail-Konto oder App-Passwort nur für den Versand verwenden.
 - Den freigegebenen Ordner für Sicherungen nicht für alle Benutzer freigeben – die Sicherungen enthalten
   alle Daten und die Passwort-Hashes.
+- Das Meldeformular ist öffentlich. Den Link nur an die Leute geben, die melden sollen, und bei Missbrauch unter
+  Verwaltung → Helpdesk „Neuer Link“ oder „Abschalten“ wählen. Im Formular steht ein Hinweis, keine vertraulichen
+  Daten (z. B. Patientendaten) einzutragen – er lässt sich anpassen.
 
 # Security (English)
 

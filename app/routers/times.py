@@ -25,8 +25,9 @@ MAX_HOURS = 24
 
 
 class StartIn(BaseModel):
-    project_id: Optional[int] = Field(None, description="Projekt; ohne Angabe das Projekt der Aufgabe")
+    project_id: Optional[int] = Field(None, description="Projekt; ohne Angabe das Projekt der Aufgabe bzw. des Tickets")
     task_id: Optional[int] = None
+    ticket_id: Optional[int] = Field(None, description="Helpdesk-Ticket; die Zeit läuft auf dessen Projekt")
     note: str = Field("", max_length=500)
     on_site: bool = False
 
@@ -38,6 +39,7 @@ class StopIn(BaseModel):
 class EntryIn(BaseModel):
     project_id: Optional[int] = None
     task_id: Optional[int] = None
+    ticket_id: Optional[int] = None
     start: datetime = Field(..., description="Beginn (Ortszeit, z. B. 2026-11-05T09:00)")
     end: datetime = Field(..., description="Ende (Ortszeit)")
     note: str = Field("", max_length=500)
@@ -55,9 +57,10 @@ class EntryUpdate(BaseModel):
 
 
 SELECT = ("SELECT e.*, p.name AS project, p.color AS project_color, c.name AS customer, c.id AS customer_id, "
-          "t.title AS task, u.display_name AS user_name FROM time_entries e "
+          "t.title AS task, u.display_name AS user_name, k.year AS ticket_year, k.seq AS ticket_seq, k.title AS ticket_title "
+          "FROM time_entries e "
           "JOIN projects p ON p.id = e.project_id LEFT JOIN customers c ON c.id = p.customer_id "
-          "LEFT JOIN tasks t ON t.id = e.task_id JOIN users u ON u.id = e.user_id")
+          "LEFT JOIN tasks t ON t.id = e.task_id JOIN users u ON u.id = e.user_id LEFT JOIN tickets k ON k.id = e.ticket_id")
 
 
 def seconds_of(row, now: Optional[datetime] = None) -> int:
@@ -72,6 +75,8 @@ def entry_out(r) -> dict:
         "project_id": r["project_id"], "project": r["project"], "project_color": r["project_color"],
         "customer_id": r["customer_id"], "customer": r["customer"],
         "task_id": r["task_id"], "task": r["task"],
+        "ticket_id": r["ticket_id"], "ticket": f"T-{r['ticket_year']}-{r['ticket_seq']:04d}" if r["ticket_id"] else None,
+        "ticket_title": r["ticket_title"],
         "start": local_iso(r["start_utc"]), "end": local_iso(r["end_utc"]), "running": r["end_utc"] is None,
         "day": to_local(parse_utc(r["start_utc"])).date().isoformat(),
         "seconds": s, "minutes": round(s / 60), "note": r["note"], "on_site": bool(r["on_site"]),
@@ -83,8 +88,22 @@ def _load(conn, entry_id: int):
     return conn.execute(SELECT + " WHERE e.id = ?", (entry_id,)).fetchone()
 
 
-def _target(conn, user, project_id: Optional[int], task_id: Optional[int]):
+def _ticket(conn, user, ticket_id: int):
+    """Ticket prüfen (Helpdesk an und Ticket sichtbar)."""
+    from .. import modules
+    from .tickets import _get as get_ticket
+    if not modules.enabled(conn, "helpdesk"):
+        raise HTTPException(400, "Das Modul „Helpdesk“ ist abgeschaltet")
+    return get_ticket(conn, user, ticket_id)
+
+
+def _target(conn, user, project_id: Optional[int], task_id: Optional[int], ticket_id: Optional[int] = None):
     """Projekt und Aufgabe prüfen. Liefert (project_id, task_id)."""
+    if ticket_id is not None:
+        k = _ticket(conn, user, ticket_id)
+        if project_id is not None and project_id != k["project_id"]:
+            raise HTTPException(400, "Das Ticket gehört nicht zu diesem Projekt")
+        project_id, task_id = k["project_id"], None
     if task_id is not None:
         t = get_task(conn, user, task_id)
         if project_id is None:
@@ -162,18 +181,32 @@ def running(user=Depends(current_user), conn: sqlite3.Connection = Depends(get_d
 @router.post("/start")
 def start(data: StartIn, user=Depends(current_user), conn: sqlite3.Connection = Depends(get_db)):
     """Stoppuhr starten. Läuft schon eine, wird sie vorher beendet."""
-    project_id, task_id = _target(conn, user, data.project_id, data.task_id)
+    project_id, task_id = _target(conn, user, data.project_id, data.task_id, data.ticket_id)
     stopped = None
     r = _running(conn, user["id"])
     if r:
         stopped = _stop(conn, user, r)
     now = now_utc_str()
     cur = conn.execute(
-        "INSERT INTO time_entries(user_id, project_id, task_id, start_utc, note, on_site, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (user["id"], project_id, task_id, now, data.note.strip(), int(data.on_site), now))
+        "INSERT INTO time_entries(user_id, project_id, task_id, ticket_id, start_utc, note, on_site, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (user["id"], project_id, task_id, data.ticket_id, now, data.note.strip(), int(data.on_site), now))
     row = _load(conn, cur.lastrowid)
-    audit(conn, user["id"], "time_started", f"time:{row['id']}", row["project"] + (f" · {row['task']}" if row["task"] else ""))
+    if data.ticket_id is not None:
+        _ticket_started(conn, user, data.ticket_id)
+    audit(conn, user["id"], "time_started", f"time:{row['id']}", row["project"] + (f" · {row['task']}" if row["task"] else "")
+          + (f" · T-{row['ticket_year']}-{row['ticket_seq']:04d}" if row["ticket_id"] else ""))
     return {"running": entry_out(row), "stopped": stopped}
+
+
+def _ticket_started(conn, user, ticket_id: int) -> None:
+    """Stoppuhr am neuen Ticket: es ist jetzt „in Arbeit“ und gehört dieser Person, wenn es noch niemandem gehört."""
+    from .. import helpdesk as hd
+    k = conn.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+    if k["assignee_id"] is None:
+        conn.execute("UPDATE tickets SET assignee_id = ? WHERE id = ?", (user["id"], ticket_id))
+    if k["status"] in ("new", "wait"):
+        conn.execute("UPDATE tickets SET status = 'open', updated_at = ? WHERE id = ?", (now_utc_str(), ticket_id))
+        hd.system_message(conn, ticket_id, f"{user['display_name']} arbeitet daran (Stoppuhr gestartet)", user["id"])
 
 
 @router.post("/stop")
@@ -218,14 +251,14 @@ def create_entry(data: EntryIn, user=Depends(current_user), conn: sqlite3.Connec
         if not conn.execute("SELECT 1 FROM users WHERE id = ? AND active = 1", (data.user_id,)).fetchone():
             raise HTTPException(400, "Benutzer nicht gefunden")
         uid = data.user_id
-    project_id, task_id = _target(conn, user, data.project_id, data.task_id)
+    project_id, task_id = _target(conn, user, data.project_id, data.task_id, data.ticket_id)
     s, e = to_utc_str(data.start), to_utc_str(data.end)
     _check_span(conn, uid, s, e)
     now = now_utc_str()
     cur = conn.execute(
-        "INSERT INTO time_entries(user_id, project_id, task_id, start_utc, end_utc, note, on_site, created_at, updated_by) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (uid, project_id, task_id, s, e, data.note.strip(), int(data.on_site), now, user["id"]))
+        "INSERT INTO time_entries(user_id, project_id, task_id, ticket_id, start_utc, end_utc, note, on_site, created_at, updated_by) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (uid, project_id, task_id, data.ticket_id, s, e, data.note.strip(), int(data.on_site), now, user["id"]))
     row = _load(conn, cur.lastrowid)
     out = entry_out(row)
     audit(conn, user["id"], "time_added", f"time:{row['id']}",
@@ -244,6 +277,9 @@ def update_entry(entry_id: int, data: EntryUpdate, user=Depends(current_user), c
         tid = data.task_id if "task_id" in changes else (row["task_id"] if pid == row["project_id"] else None)
         pid, tid = _target(conn, user, pid, tid)
         conn.execute("UPDATE time_entries SET project_id = ?, task_id = ? WHERE id = ?", (pid, tid, entry_id))
+        # Ticket aus einem anderen Projekt passt nicht mehr → Verknüpfung lösen
+        conn.execute("UPDATE time_entries SET ticket_id = NULL WHERE id = ? AND ticket_id IS NOT NULL "
+                     "AND ticket_id NOT IN (SELECT id FROM tickets WHERE project_id = ?)", (entry_id, pid))
     if "start" in changes or "end" in changes:
         s = to_utc_str(data.start) if data.start else row["start_utc"]
         if row["end_utc"] is None and data.end is None:

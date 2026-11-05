@@ -110,7 +110,7 @@ def main():
     body = None
     length = int(os.environ.get("CONTENT_LENGTH") or 0)
     if length > 0:
-        if length > 6 * 1024 * 1024:
+        if length > 11 * 1024 * 1024:  # Anhänge im Helpdesk: bis 10 MB
             return fail("413 Payload Too Large", "Anfrage zu groß")
         body = sys.stdin.buffer.read(length)
 

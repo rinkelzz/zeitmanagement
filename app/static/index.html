@@ -31,6 +31,7 @@
     <button data-tab="tasks">Aufgaben</button>
     <button data-tab="calendar">Kalender</button>
     <button data-tab="roster">Dienstplan</button>
+    <button data-tab="tickets">Tickets<span class="tabbadge hidden" id="tkBadge"></span></button>
     <button data-tab="times">Zeiten</button>
     <button data-tab="reports">Auswertung</button>
     <button data-tab="admin" class="admin hidden">Verwaltung</button>
@@ -115,6 +116,28 @@
     <div id="rsModal" class="modal hidden" role="dialog" aria-modal="true"><div class="card modalcard" id="rsForm"></div></div>
   </div>
 
+  <!-- TICKETS -->
+  <div data-page="tickets" class="page hidden">
+    <div class="split" id="tkListView">
+      <aside class="card side" id="tkSide"></aside>
+      <section class="card">
+        <select id="tkViewSel" class="mobileOnly" aria-label="Ansicht"></select>
+        <div class="toolbar"><h2 id="tkTitle">Tickets</h2>
+          <div class="row">
+            <input id="tkSearch" type="search" maxlength="100" placeholder="Suchen … Nummer, Titel, Melder" style="width:230px">
+            <button class="primary" id="tkNewBtn">+ Ticket</button>
+          </div></div>
+        <div id="tkNew" class="card projform hidden"></div>
+        <div class="err" id="tkErr"></div>
+        <div id="tkList"></div>
+      </section>
+    </div>
+    <div class="tgrid hidden" id="tkDetailView">
+      <section class="card" id="tkMain"></section>
+      <aside class="panel" id="tkPanel"></aside>
+    </div>
+  </div>
+
   <!-- ZEITEN -->
   <div data-page="times" class="page hidden">
     <section class="card" id="clockCard">
@@ -191,6 +214,8 @@
     <nav class="subnav" id="adminNav" aria-label="Verwaltung">
       <button data-asec="benutzer" class="teamOnly">👥 Benutzer</button>
       <button data-asec="einstellungen">⚙️ Einstellungen</button>
+      <button data-asec="module">🧩 Module</button>
+      <button data-asec="helpdesk">🎫 Helpdesk</button>
       <button data-asec="dienstplan">🗓️ Dienstplan</button>
       <button data-asec="mail">✉️ Mail</button>
       <button data-asec="system" title="Port, Datensicherung, Updates">💾 System</button>
@@ -257,6 +282,50 @@
         <button class="primary" id="setBtn">Einstellungen speichern</button>
         <div class="err" id="setErr"></div>
       </div>
+    </section>
+
+    <section class="card asec" data-asec="module">
+      <h2>Module</h2>
+      <p class="muted small" style="margin-top:-6px">Abgeschaltete Bereiche verschwinden aus Menü, Kalender und Mails. Ihre Daten bleiben erhalten –
+        beim Wiedereinschalten ist alles wieder da.</p>
+      <div id="modList"></div>
+      <div class="err" id="modErr"></div>
+    </section>
+
+    <section class="card asec" data-asec="helpdesk">
+      <h2>Formular-Links pro Projekt</h2>
+      <p class="muted small" style="margin-top:-6px">Jeder Link führt zu einem öffentlichen Meldeformular – das Ticket landet direkt im passenden Projekt.
+        „Neuer Link“ macht den alten ungültig. Für Melder von außen muss die App über den Reverse Proxy mit https:// erreichbar sein.</p>
+      <div class="httpwarn hidden" id="hdUrlWarn">Unter Verwaltung → Einstellungen ist noch keine <b>öffentliche Adresse</b> eingetragen –
+        die Links unten zeigen deshalb die Adresse, über die du gerade angemeldet bist.</div>
+      <div class="scroll"><table id="hdForms"></table></div>
+      <div class="err" id="hdFormsErr"></div>
+    </section>
+    <section class="card asec" data-asec="helpdesk">
+      <h2>Einstellungen</h2>
+      <div class="setgrid">
+        <fieldset><legend>Mails an Melder</legend>
+          <label class="inline"><input type="checkbox" id="hdConfirm"> Eingangsbestätigung mit Ticketnummer</label>
+          <label class="inline"><input type="checkbox" id="hdReply"> Antworten per Mail verschicken</label>
+          <label class="inline"><input type="checkbox" id="hdDone"> Mail bei „erledigt“</label>
+          <p class="muted small">Betreff mit Kennung, z. B. <code>[#T-2026-0042]</code>. Ohne Mailserver (Verwaltung → Mail) gehen keine Mails raus.</p>
+        </fieldset>
+        <fieldset><legend>Bearbeiter</legend>
+          <label class="inline"><input type="checkbox" id="hdNotify"> Neue Meldung: Mail an den Bearbeiter (sonst an den Chef)</label>
+        </fieldset>
+        <fieldset><legend>Formular</legend>
+          <label>Hinweis über dem Absenden-Knopf <input id="hdHint" maxlength="500"></label>
+          <label>Link zu Datenschutzhinweisen (optional) <input id="hdPrivacy" maxlength="300" placeholder="https://…/datenschutz"></label>
+          <label class="inline"><input type="checkbox" id="hdFiles"> Anhänge erlauben (PNG, JPG, PDF · 10 MB · höchstens 5)</label>
+        </fieldset>
+        <fieldset><legend>Aufbewahrung</legend>
+          <label>Erledigte Tickets löschen nach
+            <select id="hdRetention"><option value="3">3 Monaten</option><option value="6">6 Monaten</option><option value="12">12 Monaten</option>
+              <option value="24">24 Monaten</option><option value="36">36 Monaten</option><option value="0">nie</option></select></label>
+          <p class="muted small">Mit Verlauf und Anhängen. Gebuchte Zeiten bleiben erhalten – die Ticketnummer steht dann in der Notiz.</p>
+        </fieldset>
+      </div>
+      <div class="savebar"><button class="primary" id="hdSave">Speichern</button><span class="err" id="hdErr"></span></div>
     </section>
 
     <section class="card asec" data-asec="dienstplan">
@@ -446,5 +515,6 @@
 <script src="static/times.js?v={{v}}"></script>
 <script src="static/calendar.js?v={{v}}"></script>
 <script src="static/roster.js?v={{v}}"></script>
+<script src="static/tickets.js?v={{v}}"></script>
 </body>
 </html>

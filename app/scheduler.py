@@ -1,4 +1,4 @@
-"""Hintergrund-Aufgaben: Erinnerungs-Mails, nächtliche Datensicherung und Update-Prüfung.
+"""Hintergrund-Aufgaben: Erinnerungs-Mails, alte Tickets löschen, nächtliche Datensicherung und Update-Prüfung.
 
 Ein Thread, der alle paar Minuten nachsieht, ob etwas fällig ist. Fehler werden protokolliert,
 stoppen aber nie die App.
@@ -27,6 +27,18 @@ def run_once() -> None:
             conn.close()
     except Exception as e:  # noqa: BLE001
         print(f"[zeitmanagement] Erinnerungen FEHLER: {e}", flush=True)
+    try:
+        from . import helpdesk
+        from .db import connect as _connect
+        conn = _connect()
+        try:
+            n = helpdesk.purge_old(conn)
+            if n:
+                print(f"[zeitmanagement] {n} alte erledigte Tickets gelöscht", flush=True)
+        finally:
+            conn.close()
+    except Exception as e:  # noqa: BLE001
+        print(f"[zeitmanagement] Helpdesk-Aufräumen FEHLER: {e}", flush=True)
     try:
         from . import backup
         b = backup.run_due()

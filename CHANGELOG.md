@@ -2,6 +2,53 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.7.0] – 2026-11-05
+
+### Neu
+- **Helpdesk** als neuer Reiter „Tickets“: Mitarbeiter deiner Kunden (oder im eigenen Betrieb) melden Probleme über ein
+  **öffentliches Meldeformular**, du arbeitest sie als Tickets ab. Ticketnummern wie `T-2026-0042`, die Zählung beginnt
+  jedes Jahr neu.
+- **Meldeformular pro Projekt** mit eigenem, geheimem Link (Verwaltung → Helpdesk): Name, E-Mail, Telefon, Betreff,
+  Beschreibung, Dringlichkeit („Arbeit steht still“) und bis zu 5 **Anhänge** (PNG, JPG, PDF, je 10 MB). Hinweis
+  über dem Absenden-Knopf (z. B. „Bitte keine Patientendaten“) und optional Link zu Datenschutzhinweisen.
+  „Neuer Link“ macht den alten ungültig, „Abschalten“ legt das Formular still.
+- **Ticketliste** mit Ansichten Neu, Mir zugewiesen, Alle offenen, Wartet auf Rückmeldung, Erledigt und nach Projekt
+  (gruppiert nach Kunde), Suche nach Nummer, Titel oder Melder, Zähler für neue Tickets am Reiter.
+- **Ticketansicht** mit Verlauf: Meldung, **Antworten an den Melder per Mail** (mit Anhängen), **interne Notizen**,
+  Statuswechsel und Mails als Einträge. Status, Priorität, Bearbeiter und Projekt direkt änderbar, „Senden + Erledigt“
+  in einem Schritt. Tickets lassen sich auch von Hand anlegen (z. B. nach einem Anruf).
+- **Zeit pro Ticket:** Stoppuhr direkt am Ticket (in Liste und Ansicht) – gebucht wird auf das Projekt des Tickets, mit
+  „vor Ort“. Ein neues Ticket ist beim Start automatisch „in Arbeit“ und gehört dir. Die Ticketnummer steht in der
+  Kopfzeile, unter Zeiten und in der Buchung; nachgetragene Zeiten können ebenfalls ein Ticket haben.
+- **Mails:** Eingangsbestätigung mit Ticketnummer, Antworten, „erledigt“ – einzeln abschaltbar. Neue Meldungen gehen
+  als Hinweis-Mail an den Bearbeiter des Formulars (sonst an den Chef), dringende mit „DRINGEND“ im Betreff. Alle
+  Mails tragen die Kennung `[#T-…]` im Betreff und `Auto-Submitted`, damit Abwesenheitsnotizen keine Schleifen bauen.
+  Schlägt eine Mail fehl, steht das im Verlauf – das Ticket bleibt gespeichert.
+- **Aufbewahrung:** Erledigte Tickets werden nach einer einstellbaren Frist (3–36 Monate, Standard 12, oder nie) samt
+  Verlauf und Anhängen gelöscht. Gebuchte Zeiten bleiben, die Ticketnummer wandert in ihre Notiz.
+- **Module an- und abschaltbar** (Verwaltung → Module): Aufgaben, Projektzeiten, Kalender, Dienstplan und Helpdesk.
+  Ein abgeschaltetes Modul verschwindet aus Menü, Kalender, Abo und Mails, die Schnittstelle antwortet mit 403 – die
+  Daten bleiben erhalten. So lässt sich die App z. B. nur als Helpdesk oder nur als Dienstplan nutzen.
+- Änderungsprotokoll mit dem neuen Bereich „Helpdesk“.
+
+### Geändert
+- Der Helpdesk ist nach dem Update **abgeschaltet** und muss unter Verwaltung → Module eingeschaltet werden – ein
+  Update schaltet also kein öffentliches Formular frei.
+- Sieben Reiter: Abstände in der Kopfzeile etwas enger, der Stoppuhr-Text verschwindet auf mittelgroßen Bildschirmen.
+
+### Sicherheit
+- Meldeformular: höchstens 5 Meldungen pro Absenderadresse und 20 pro Formular in 15 Minuten, verstecktes Feld gegen
+  Spam-Programme, Link wird bei abgeschaltetem Modul oder Formular zu 404.
+- Anhänge: Typ wird am **Inhalt** geprüft (SVG/HTML abgelehnt), Dateiname bereinigt, Größe schon beim Empfang begrenzt.
+  Hochladen nur 30 Minuten nach dem Absenden mit dem Schlüssel aus der Antwort. Download nur angemeldet, immer als
+  Anhang mit `nosniff` und `Content-Security-Policy: sandbox`.
+- Mitarbeiter sehen nur Tickets ihrer Projekte, Löschen und Helpdesk-Verwaltung nur der Chef.
+
+### Technik
+- Datenbank-Schema Version 7 (Tickets, Verlauf, Anhänge, Formulare; `ticket_id` an Zeitbuchungen). Anhänge liegen in
+  der Datenbank und sind damit in jeder Sicherung enthalten.
+- DSM-Fenster: Anfragen bis 11 MB (für Anhänge).
+
 ## [0.6.0] – 2026-11-05
 
 ### Neu
@@ -138,6 +185,7 @@ Erste Version: das Fundament. Aufgaben (0.2) und Projektzeiten (0.3) folgen.
 - Echte Client-IP hinter dem DSM-Reverse-Proxy nur von 127.0.0.1, kein SMTP-Passwort in Sicherungen,
   CSV-Export gegen Formel-Injection geschützt. Details in [SECURITY.md](SECURITY.md).
 
+[0.7.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.7.0
 [0.6.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.6.0
 [0.5.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.5.0
 [0.4.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.4.0

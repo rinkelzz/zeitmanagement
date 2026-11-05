@@ -34,7 +34,7 @@ function drawClock() {
   const r = TM.running, sec = elapsed();
   $("hdTimer").classList.toggle("hidden", !r);
   if (r) {
-    $("hdProj").textContent = r.project + (r.task ? " · " + r.task : "") + " ·";
+    $("hdProj").textContent = (r.ticket ? r.ticket + " · " + (r.ticket_title || r.project) : r.project + (r.task ? " · " + r.task : "")) + " ·";
     $("hdTime").textContent = hmsStr(sec);
   }
   if (state.tab === "times" && TM.mode === "watch") {
@@ -113,7 +113,7 @@ function fillProjectSelect() {
   if (!TM.projects.length) $("tmProject").innerHTML = '<option value="">– noch kein Projekt – unter Aufgaben anlegen –</option>';
 }
 async function fillTaskSelect(projectId, sel) {
-  if (!projectId) { $("tmTask").innerHTML = '<option value="">–</option>'; return; }
+  if (!projectId || !modOn("tasks")) { $("tmTask").innerHTML = '<option value="">–</option>'; return; }
   if (!TM.tasksByProject[projectId]) TM.tasksByProject[projectId] = await api(`tasks?project_id=${projectId}`);
   const list = TM.tasksByProject[projectId];
   $("tmTask").innerHTML = '<option value="">– keine bestimmte –</option>' +
@@ -269,7 +269,7 @@ function renderWeek() {
     list.forEach(e => {
       h += `<div class="entry ${e.running ? "running" : ""}"><span class="time">${timeOf(e.start)} – ${e.running ? "läuft" : timeOf(e.end)}</span>
         <div><span class="ptag"><i style="background:${esc(e.project_color)}"></i> <b>${esc(e.project)}</b></span>${e.customer ? ` <span class="muted small">· ${esc(e.customer)}</span>` : ""}
-          ${e.task || e.note ? `<div class="note">${esc([e.task, e.note].filter(Boolean).join(" – "))}</div>` : ""}</div>
+          ${e.task || e.note || e.ticket ? `<div class="note">${esc([e.ticket ? e.ticket + " " + (e.ticket_title || "") : "", e.task, e.note].filter(Boolean).join(" – "))}</div>` : ""}</div>
         <span class="tagcol">${e.on_site ? '<span class="tag">vor Ort</span>' : ""}${e.billed ? ` <span class="tag billed" title="abgerechnet ${esc(fmtDT(e.billed_at))}${e.billed_ref ? " – " + esc(e.billed_ref) : ""}">🔒 abgerechnet</span>` : ""}</span>
         <span class="dur">${e.running ? hmStr(Math.floor(elapsed() / 60)) : hmStr(e.minutes)}</span>
         <span class="acts">${e.billed ? "" : `<button class="mini" data-eedit="${e.id}">Bearbeiten</button>`}</span></div>`;
@@ -291,7 +291,8 @@ function entryEditor(e) {
       <label class="inline"><input type="checkbox" data-f="on_site" ${e.on_site ? "checked" : ""}> vor Ort</label></div>
     <label>Notiz <input data-f="note" maxlength="500" value="${esc(e.note)}"></label>
     <div class="row"><button class="primary" data-save>Speichern</button><button data-close>Schließen</button><button class="danger" data-del>Löschen</button>
-      ${e.task ? `<span class="muted small">Aufgabe: ${esc(e.task)}</span>` : ""}</div></div>`;
+      ${e.task ? `<span class="muted small">Aufgabe: ${esc(e.task)}</span>` : ""}
+      ${e.ticket ? `<span class="muted small">Ticket: ${esc(e.ticket)} ${esc(e.ticket_title || "")}</span>` : ""}</div></div>`;
 }
 function bindEntryEditor() {
   const box = $("wkList").querySelector(".eedit");

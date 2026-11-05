@@ -70,7 +70,13 @@ const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { ret
                 set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* egal */ } } };
 
 // ---------- Start, Anmeldung, Reiter ----------
-const TABS = ["tasks", "calendar", "roster", "times", "reports", "admin", "me"];
+const TABS = ["tasks", "calendar", "roster", "tickets", "times", "reports", "admin", "me"];
+// Reiter bzw. Verwaltungsbereich → Modul (abgeschaltete Module verschwinden aus dem Menü)
+const TAB_MODULE = { tasks: "tasks", calendar: "calendar", roster: "roster", tickets: "helpdesk", times: "times", reports: "times" };
+const SEC_MODULE = { dienstplan: "roster", helpdesk: "helpdesk" };
+const modOn = (key) => !state.settings || !state.settings.modules || state.settings.modules[key] !== false;
+const tabOn = (tab) => !TAB_MODULE[tab] || modOn(TAB_MODULE[tab]);
+const firstTab = () => TABS.find(t => TAB_MODULE[t] && tabOn(t)) || "me";
 function showLogin() {
   $("appView").classList.add("hidden"); $("loginView").classList.remove("hidden");
   setTimeout(() => $("lu").focus(), 0);
@@ -98,6 +104,9 @@ async function login() {
 
 function applyMode() {
   document.body.classList.toggle("is-team", isTeam());
+  $$("#tabs button").forEach(b => b.classList.toggle("hidden", !tabOn(b.dataset.tab) || (b.dataset.tab === "admin" && !isAdmin())));
+  $$("#adminNav [data-asec]").forEach(b => { if (SEC_MODULE[b.dataset.asec]) b.classList.toggle("hidden", !modOn(SEC_MODULE[b.dataset.asec])); });
+  $$(".modTimes").forEach(el => el.classList.toggle("hidden", !modOn("times")));
   $$(".teamOnly").forEach(el => el.classList.toggle("hidden", !isTeam()));
   $$(".admin").forEach(el => el.classList.toggle("hidden", !isAdmin()));
 }
@@ -110,10 +119,12 @@ async function start() {
   showMe();
   $("httpWarn").classList.toggle("hidden", !state.me.insecure_http);
   applyMode();
-  if (window.refreshRunning) refreshRunning();
-  const [wanted, sec] = ((location.hash || "").slice(1) || store.get("tab") || "tasks").split("/");
-  if (sec) store.set("asec", sec);
-  await showTab(TABS.includes(wanted) && (wanted !== "admin" || isAdmin()) ? wanted : "tasks");
+  if (window.refreshRunning && modOn("times")) refreshRunning();
+  if (window.refreshTicketBadge) refreshTicketBadge();
+  const [wanted, sec] = ((location.hash || "").slice(1) || store.get("tab") || firstTab()).split("/");
+  if (sec && wanted === "admin") store.set("asec", sec);
+  if (sec && wanted === "tickets") store.set("ticket", sec);
+  await showTab(TABS.includes(wanted) && tabOn(wanted) && (wanted !== "admin" || isAdmin()) ? wanted : firstTab());
 }
 
 function showMe() {
@@ -123,17 +134,20 @@ function showMe() {
 }
 
 async function showTab(name) {
+  if (!tabOn(name)) name = firstTab();
   state.tab = name;
   $$("#tabs button").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
   $("userChip").classList.toggle("active", name === "me");
   $$(".page").forEach(p => p.classList.toggle("hidden", p.dataset.page !== name));
   store.set("tab", name);
   history.replaceState(null, "", "#" + name + (name === "admin" ? "/" + (store.get("asec") || "einstellungen") : ""));
+  if (name !== "tickets") store.set("ticket", "");
   try {
     if (name === "tasks" && window.loadTasks) await loadTasks();
     if (name === "times" && window.loadTimes) await loadTimes();
     if (name === "calendar" && window.loadCalendar) await loadCalendar();
     if (name === "roster" && window.loadRoster) await loadRoster();
+    if (name === "tickets" && window.loadTickets) await loadTickets();
     if (name === "reports" && window.loadReports) await loadReports();
     if (name === "admin") { showAdminSec(store.get("asec") || "einstellungen"); await loadAdmin(); }
     if (name === "me") { loadMe(); if (window.loadFeed) loadFeed(); }
@@ -141,9 +155,9 @@ async function showTab(name) {
 }
 
 // ---------- Verwaltung ----------
-const ADMIN_SECS = ["benutzer", "einstellungen", "dienstplan", "mail", "system", "protokoll"];
+const ADMIN_SECS = ["benutzer", "einstellungen", "module", "helpdesk", "dienstplan", "mail", "system", "protokoll"];
 function showAdminSec(key) {
-  if (!ADMIN_SECS.includes(key) || (key === "benutzer" && !isTeam())) key = "einstellungen";
+  if (!ADMIN_SECS.includes(key) || (key === "benutzer" && !isTeam()) || (SEC_MODULE[key] && !modOn(SEC_MODULE[key]))) key = "einstellungen";
   $$("#adminNav [data-asec]").forEach(b => b.classList.toggle("active", b.dataset.asec === key));
   $$('[data-page="admin"] section.asec').forEach(sec => sec.classList.toggle("hidden", sec.dataset.asec !== key));
   store.set("asec", key);
@@ -159,8 +173,35 @@ async function loadAdmin() {
   state.users = await api("users");
   if (isTeam()) showUsers();
   jobs.push(initAudit().catch(e => { $("alErr").textContent = e.message; }));
-  if (window.loadShiftAdmin) jobs.push(loadShiftAdmin().catch(e => { $("stErr").textContent = e.message; }));
+  showModules();
+  if (window.loadShiftAdmin && modOn("roster")) jobs.push(loadShiftAdmin().catch(e => { $("stErr").textContent = e.message; }));
+  if (window.loadHelpdeskAdmin && modOn("helpdesk")) jobs.push(loadHelpdeskAdmin().catch(e => { $("hdFormsErr").textContent = e.message; }));
   await Promise.all(jobs);
+}
+
+// Module
+const MOD_INFO = {
+  tasks: ["✅", "Aufgaben, Listen, Erinnerungen, Schnelleingabe"],
+  times: ["⏱️", "Stoppuhr, Zeiten, Auswertung, Berichte"],
+  calendar: ["📅", "Termine, Serien, Kalender-Abo"],
+  roster: ["🗓️", "Schichten, Wochenplan, PDF"],
+  helpdesk: ["🎫", "Tickets per Meldeformular, Antworten per Mail, Zeit pro Ticket"],
+};
+function showModules() {
+  const m = state.settings.modules || {}, names = state.settings.module_names || {};
+  $("modList").innerHTML = Object.keys(names).map(k => `<div class="modrow"><span class="ic">${MOD_INFO[k] ? MOD_INFO[k][0] : "•"}</span>
+    <div><b>${esc(names[k])}</b><small>${MOD_INFO[k] ? esc(MOD_INFO[k][1]) : ""}${k === "helpdesk" ? " · <i>Zeit pro Ticket braucht Projektzeiten</i>" : ""}</small></div>
+    <label class="switch" title="${esc(names[k])} an/aus"><input type="checkbox" data-mod="${k}" ${m[k] ? "checked" : ""}><span></span></label></div>`).join("");
+  $$("#modList [data-mod]").forEach(cb => cb.onchange = async () => {
+    $("modErr").textContent = "";
+    try {
+      state.settings = await api("settings", { method: "PATCH", body: { modules: { [cb.dataset.mod]: cb.checked } } });
+      applyMode(); showModules();
+      if (cb.dataset.mod === "helpdesk" && cb.checked && window.loadHelpdeskAdmin) loadHelpdeskAdmin().catch(() => {});
+      if (window.refreshTicketBadge) refreshTicketBadge();
+      okMsg($("modErr"), `${state.settings.module_names[cb.dataset.mod]} ${cb.checked ? "eingeschaltet" : "abgeschaltet"}.`);
+    } catch (e) { cb.checked = !cb.checked; $("modErr").textContent = e.message; }
+  });
 }
 
 // Benutzer

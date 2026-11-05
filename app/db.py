@@ -288,6 +288,73 @@ CREATE TABLE IF NOT EXISTS shift_weeks (
              ("Frei", "–", "off", None, None, 0, "#94a3b8", 12, now)])
 
 
+def _m7_helpdesk(conn: sqlite3.Connection) -> None:
+    """Version 0.7: Helpdesk mit Tickets, Verlauf, Anhängen und Meldeformular pro Projekt."""
+    _run(conn, """
+CREATE TABLE IF NOT EXISTS tickets (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    year            INTEGER NOT NULL,              -- Ticketnummer T-<year>-<seq>, Zählung je Jahr
+    seq             INTEGER NOT NULL,
+    project_id      INTEGER NOT NULL REFERENCES projects(id) ON DELETE RESTRICT,
+    title           TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'new',   -- new | open (in Arbeit) | wait (wartet auf Rückmeldung) | done
+    priority        INTEGER NOT NULL DEFAULT 3,    -- 1 dringend, 2 hoch, 3 normal
+    assignee_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    requester_name  TEXT NOT NULL DEFAULT '',
+    requester_email TEXT NOT NULL DEFAULT '',
+    requester_phone TEXT NOT NULL DEFAULT '',
+    source          TEXT NOT NULL DEFAULT 'manual', -- form | manual (später: mail, portal)
+    unread          INTEGER NOT NULL DEFAULT 1,    -- neue Nachricht vom Melder, noch nicht angesehen
+    upload_key      TEXT,                          -- Anhänge nach dem Absenden des Formulars hochladen
+    upload_until    TEXT,
+    created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL,
+    done_at         TEXT,
+    UNIQUE (year, seq)
+);
+CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status, project_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_assignee ON tickets(assignee_id, status);
+CREATE INDEX IF NOT EXISTS idx_tickets_done ON tickets(done_at);
+
+CREATE TABLE IF NOT EXISTS ticket_messages (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticket_id    INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    kind         TEXT NOT NULL,                    -- requester | reply | note | system
+    author_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    author_name  TEXT NOT NULL DEFAULT '',
+    body         TEXT NOT NULL,
+    created_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ticket_msg ON ticket_messages(ticket_id, id);
+
+-- Anhänge liegen in der Datenbank: so sind sie automatisch in jeder Sicherung und werden mit dem Ticket gelöscht
+CREATE TABLE IF NOT EXISTS ticket_files (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticket_id    INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    message_id   INTEGER REFERENCES ticket_messages(id) ON DELETE SET NULL,
+    name         TEXT NOT NULL,
+    mime         TEXT NOT NULL,
+    size         INTEGER NOT NULL,
+    data         BLOB NOT NULL,
+    uploaded_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,   -- NULL = Melder
+    created_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ticket_files ON ticket_files(ticket_id);
+
+CREATE TABLE IF NOT EXISTS ticket_forms (
+    project_id   INTEGER PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+    token        TEXT NOT NULL UNIQUE,             -- steht im öffentlichen Link
+    active       INTEGER NOT NULL DEFAULT 1,
+    assignee_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,   -- Bearbeiter für neue Meldungen
+    created_at   TEXT NOT NULL
+);
+""")
+    if "ticket_id" not in _columns(conn, "time_entries"):
+        conn.execute("ALTER TABLE time_entries ADD COLUMN ticket_id INTEGER REFERENCES tickets(id) ON DELETE SET NULL")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_time_ticket ON time_entries(ticket_id)")
+
+
 # Version → Schritt. Nur anhängen, nie ändern!
 MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     1: _m1_basis,
@@ -296,6 +363,7 @@ MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     4: _m4_komfort,
     5: _m5_kalender,
     6: _m6_dienstplan,
+    7: _m7_helpdesk,
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 
@@ -327,6 +395,21 @@ DEFAULT_SETTINGS = {
     # Tägliche Erinnerungs-Mail (fällige und überfällige Aufgaben)
     "reminders_enabled": "1",
     "reminder_hour": "7",
+    # Module (siehe modules.py) – neue Module starten abgeschaltet
+    "module_tasks": "1",
+    "module_times": "1",
+    "module_calendar": "1",
+    "module_roster": "1",
+    "module_helpdesk": "0",
+    # Helpdesk
+    "hd_mail_confirm": "1",      # Eingangsbestätigung an den Melder
+    "hd_mail_reply": "1",        # Antworten per Mail an den Melder
+    "hd_mail_done": "1",         # Mail bei „erledigt“
+    "hd_notify_new": "1",        # neue Meldung: Mail an den Bearbeiter (bzw. den Chef)
+    "hd_form_hint": "Bitte keine Patientendaten oder andere vertrauliche Daten eintragen oder auf Bildschirmfotos zeigen.",
+    "hd_privacy_url": "",
+    "hd_attachments": "1",
+    "hd_retention_months": "12",  # erledigte Tickets nach so vielen Monaten löschen, 0 = nie
 }
 
 

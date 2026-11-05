@@ -34,7 +34,8 @@ def smtp_config(conn: sqlite3.Connection) -> Dict:
 
 
 def send_mail(conn: sqlite3.Connection, to: str, subject: str, body: str,
-              attachments: Optional[List[Tuple[str, bytes, str]]] = None) -> None:
+              attachments: Optional[List[Tuple[str, bytes, str]]] = None,
+              headers: Optional[Dict[str, str]] = None) -> None:
     cfg = smtp_config(conn)
     if not cfg["host"]:
         raise MailError("Kein Mailserver eingetragen (Verwaltung → Mail)")
@@ -45,8 +46,10 @@ def send_mail(conn: sqlite3.Connection, to: str, subject: str, body: str,
     msg = EmailMessage()
     msg["From"] = formataddr((cfg["from_name"], cfg["from"]))
     msg["To"] = to
-    msg["Subject"] = subject
+    msg["Subject"] = subject.replace("\r", " ").replace("\n", " ")
     msg["Message-ID"] = make_msgid(domain=cfg["from"].split("@")[-1])
+    for k, v in (headers or {}).items():
+        msg[k] = v.replace("\r", " ").replace("\n", " ")
     msg.set_content(body)
     for name, data, mime in attachments or []:
         maintype, subtype = mime.split("/", 1)

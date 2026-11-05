@@ -13,7 +13,10 @@ from .db import connect, init_db
 from .dsm import write_ui_config
 from .dsm_auth import proxy_info, publish_proxy_files
 from . import scheduler
-from .routers import auth, backup, branding, events, projects, reports, roster, settings as settings_router, tasks, times, updates, users
+from . import modules
+from fastapi import Depends
+from .routers import (auth, backup, branding, events, projects, public_form, reports, roster, settings as settings_router, tasks,
+                      tickets, times, updates, users)
 
 
 @asynccontextmanager
@@ -37,7 +40,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Zeitmanagement",
     version=__version__,
-    description="Aufgaben, Projektzeiten, Kalender und Dienstplan für die Synology NAS.",
+    description="Aufgaben, Projektzeiten, Kalender, Dienstplan und Helpdesk für die Synology NAS.",
     root_path=settings.root_path,
     lifespan=lifespan,
 )
@@ -67,9 +70,13 @@ class _RememberPeer:
 
 app.add_middleware(_RememberPeer)  # zuletzt hinzugefügt = läuft zuerst
 
-for r in (auth.router, backup.router, branding.router, events.router, events.feed_router, projects.router, reports.router, roster.router, settings_router.router, tasks.router,
-          times.router, updates.router, users.router):
+for r in (auth.router, backup.router, branding.router, projects.router, settings_router.router, updates.router, users.router,
+          tickets.router, public_form.router):
     app.include_router(r)
+# Abschaltbare Module: die API antwortet mit 403, solange das Modul aus ist
+for r, key in ((tasks.router, "tasks"), (events.router, "calendar"), (events.feed_router, "calendar"), (roster.router, "roster"),
+               (times.router, "times"), (reports.router, "times")):
+    app.include_router(r, dependencies=[Depends(modules.require(key))])
 
 
 @app.middleware("http")
