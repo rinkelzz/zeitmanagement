@@ -10,8 +10,8 @@ Aufgaben, Projektzeiten, Kalender und Dienstplan für kleine Firmen, Praxen und 
 auf der eigenen Synology NAS, mit eigenem Fenster in DSM. Wer in DSM angemeldet ist, ist es auch hier.
 Die Daten bleiben im Haus.
 
-> **Stand:** Version 0.2 – Aufgaben mit Projekten, Aufgabenlisten, Schnelleingabe und Erinnerungs-Mail.
-> Projektzeiten folgen mit 0.3 – siehe [Fahrplan](#fahrplan).
+> **Stand:** Version 0.3 – Aufgaben und Projektzeiten mit Auswertung als PDF, Excel und CSV.
+> Kalender und Dienstplan folgen – siehe [Fahrplan](#fahrplan).
 
 ![Aufgaben](docs/screenshots/aufgaben.png)
 
@@ -19,6 +19,7 @@ Die Daten bleiben im Haus.
 
 - [Funktionen](#funktionen)
 - [Aufgaben](#aufgaben)
+- [Projektzeiten und Auswertung](#projektzeiten-und-auswertung)
 - [Fahrplan](#fahrplan)
 - [Installation auf der Synology](#installation-auf-der-synology)
 - [Updates über das Paket-Zentrum](#updates-über-das-paket-zentrum)
@@ -34,6 +35,9 @@ Die Daten bleiben im Haus.
   Ansichten Heute, Überfällig, Demnächst, Meine Aufgaben, Alle offenen, Ohne Liste und Erledigt.
 - **Schnelleingabe** in einer Zeile: „Backup prüfen morgen !hoch #büro @anna“ – die App zeigt vor dem Speichern, was sie erkannt hat.
 - **Tägliche Erinnerungs-Mail** mit überfälligen und heute fälligen Aufgaben, Uhrzeit einstellbar, pro Person abschaltbar.
+- **Projektzeiten** per Stoppuhr (auch direkt an der Aufgabe mit ▶) oder nachgetragen, mit Kennzeichen „vor Ort“.
+  Die laufende Stoppuhr steht immer in der Kopfzeile.
+- **Auswertung** nach Kunde, Projekt, Aufgabe, Mitarbeiter oder Tag – als **PDF, Excel und CSV**, mit Firmenname und Logo.
 - **Zwei Betriebsarten**, jederzeit umschaltbar:
   - **Einzelperson** – nur du, ohne Benutzer, Rollen und Zuständige. Jeder DSM-Administrator landet in deinem Konto.
   - **Team** – Chef/Admin (darf alles) und Mitarbeiter (sehen nur ihre eigenen Projekte).
@@ -50,6 +54,7 @@ Die Daten bleiben im Haus.
 
 | | |
 |---|---|
+| ![Zeiten](docs/screenshots/zeiten.png) | ![Auswertung](docs/screenshots/auswertung.png) |
 | ![Projekt bearbeiten](docs/screenshots/projekt.png) | ![Einstellungen](docs/screenshots/einstellungen.png) |
 | ![Anmeldung](docs/screenshots/anmeldung.png) | ![Mein Zugang](docs/screenshots/mein-zugang.png) |
 
@@ -88,13 +93,34 @@ mit E-Mail-Adresse bekommt dann morgens eine Sammel-Mail mit ihren überfällige
 ihr zugewiesenen und eigene ohne Zuständige. Ist nichts fällig, kommt keine Mail. Unter **Mein Zugang** lässt sich die
 Erinnerung abschalten oder sofort testen.
 
+## Projektzeiten und Auswertung
+
+**Buchen.** Zeiten gehen immer auf ein *Projekt* (Aufgabenlisten sind nur für To-dos), optional auf eine Aufgabe darin:
+
+- **Stoppuhr** unter „Zeiten“ oder mit **▶** direkt an einer Aufgabe. Pro Person läuft höchstens eine Uhr – wer ein anderes
+  Projekt startet, beendet die laufende automatisch. Die Uhr läuft auf der NAS weiter, auch wenn Browser oder Handy zu
+  sind. Den Beginn kann man nachträglich korrigieren; eine vergessene Uhr wird beim Stoppen auf 24 Stunden gekürzt.
+- **Nachtragen** mit Datum, von/bis oder Dauer (z. B. `1:30` oder `1,5`). Der Chef kann auch für andere nachtragen.
+- **vor Ort** markiert Termine beim Kunden (steht in Auswertung und Export).
+- Buchungen derselben Person dürfen sich nicht überschneiden. Ändern und löschen geht in der Wochenansicht.
+
+**Auswerten.** Zeitraum (Woche, Monat, Jahr oder frei), Kunde, Projekt und – für den Chef – Mitarbeiter wählen, gruppieren
+nach Kunde → Projekt, Projekt, Projekt → Aufgabe, Mitarbeiter → Projekt oder Tag. Summen oder Einzelbuchungen,
+Export als PDF (mit Logo, mehrseitig), Excel (Übersicht + Buchungen) oder CSV (Semikolon, für Excel). Gezählt werden nur
+abgeschlossene Buchungen. Ohne Stundensätze und ohne Rundung – die Stunden sind die Grundlage für deine Rechnung.
+
+Im Team sieht ein Mitarbeiter nur seine eigenen Zeiten und kann nur auf Projekte buchen, in denen er Mitglied ist.
+Der Chef sieht alles.
+
+![PDF-Bericht](docs/screenshots/bericht-pdf.png)
+
 ## Fahrplan
 
 | Version | Inhalt |
 |---|---|
 | **0.1** ✅ | Fundament: Anmeldung (lokal + DSM, SSO), Einzelperson/Team, Benutzer, Firma & Logo, Designs, Mail, Port, Datensicherung, Updates, Protokoll |
 | **0.2** ✅ | **Aufgaben:** Aufgabenlisten und Projekte, Fälligkeit, Priorität, Zuständige, Schnelleingabe („morgen !hoch“), tägliche Erinnerungs-Mail |
-| **0.3** | **Projektzeiten:** Kunden und Projekte, Stoppuhr oder Nachtragen, Auswertung nach Kunde/Projekt/Mitarbeiter, Export PDF/Excel/CSV |
+| **0.3** ✅ | **Projektzeiten:** Kunden und Projekte, Stoppuhr oder Nachtragen, Auswertung nach Kunde/Projekt/Mitarbeiter, Export PDF/Excel/CSV |
 | später | Wiederkehrende Aufgaben, Unteraufgaben, Projektbudget · **Kalender** mit iCal-Abo fürs iPhone · **Dienstplan** mit Wochenplan als PDF |
 
 ## Installation auf der Synology
@@ -200,7 +226,9 @@ for DSM users. The user interface is German.
   folder (for Hyper Backup), updates through Package Center (the app is its own package source), audit log,
   configurable port.
 - Tasks (0.2): projects and task lists, due dates, priorities, assignees, one-line quick add
-  („Backup prüfen morgen !hoch #büro @anna“), daily reminder email. Project time tracking with PDF/Excel/CSV reports comes in 0.3.
+  („Backup prüfen morgen !hoch #büro @anna“), daily reminder email.
+- Project time tracking (0.3): stopwatch (also straight from a task), manual entries, “on site” flag, weekly view,
+  reports by customer/project/task/employee/day with PDF, Excel and CSV export. Calendar and shift planning come next.
 
 Install: download the `.spk` from [Releases](https://github.com/rinkelzz/zeitmanagement/releases) →
 Package Center → Manual Install. Security notes: [SECURITY.md](SECURITY.md). License: MIT.

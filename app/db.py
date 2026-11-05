@@ -128,10 +128,35 @@ CREATE TABLE IF NOT EXISTS reminder_log (
         conn.execute("ALTER TABLE users ADD COLUMN remind INTEGER NOT NULL DEFAULT 1")
 
 
+def _m3_zeiten(conn: sqlite3.Connection) -> None:
+    """Version 0.3: Zeitbuchungen auf Projekte (Stoppuhr oder nachgetragen)."""
+    _run(conn, """
+CREATE TABLE IF NOT EXISTS time_entries (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE RESTRICT,
+    task_id     INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
+    start_utc   TEXT NOT NULL,
+    end_utc     TEXT,                              -- NULL = Stoppuhr läuft
+    note        TEXT NOT NULL DEFAULT '',
+    on_site     INTEGER NOT NULL DEFAULT 0,        -- vor Ort beim Kunden
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT,
+    updated_by  INTEGER REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_time_user_start ON time_entries(user_id, start_utc);
+CREATE INDEX IF NOT EXISTS idx_time_project_start ON time_entries(project_id, start_utc);
+CREATE INDEX IF NOT EXISTS idx_time_task ON time_entries(task_id);
+-- höchstens eine laufende Stoppuhr pro Person
+CREATE UNIQUE INDEX IF NOT EXISTS idx_time_one_running ON time_entries(user_id) WHERE end_utc IS NULL;
+""")
+
+
 # Version → Schritt. Nur anhängen, nie ändern!
 MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     1: _m1_basis,
     2: _m2_aufgaben,
+    3: _m3_zeiten,
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 

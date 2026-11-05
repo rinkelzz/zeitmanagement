@@ -195,6 +195,9 @@ def delete_project(project_id: int, user=Depends(current_user), conn: sqlite3.Co
     if n:
         raise HTTPException(400, f"Darin stehen noch {n} Aufgabe{'n' if n != 1 else ''} – bitte verschieben oder "
                                  "das Projekt archivieren.")
+    n = conn.execute("SELECT COUNT(*) FROM time_entries WHERE project_id = ?", (project_id,)).fetchone()[0]
+    if n:
+        raise HTTPException(400, f"Auf dieses Projekt sind {n} Zeit{'en' if n != 1 else ''} gebucht – bitte archivieren statt löschen.")
     conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
     audit(conn, user["id"], "project_deleted", f"project:{project_id}", p["name"])
     return {"ok": True}

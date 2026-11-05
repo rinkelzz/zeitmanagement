@@ -33,6 +33,7 @@
     <button data-tab="reports">Auswertung</button>
     <button data-tab="admin" class="admin hidden">Verwaltung</button>
   </nav>
+  <div class="hdtimer hidden" id="hdTimer" title="Stoppuhr läuft"><span class="pulse"></span><span class="lbl" id="hdProj"></span><b id="hdTime">0:00:00</b><button class="mini" id="hdStop">Stopp</button></div>
   <button class="userchip" id="userChip" data-tab="me" title="Mein Zugang"><span class="av" id="userAv"></span><span class="lbl" id="userName"></span></button>
 </header>
 
@@ -70,21 +71,68 @@
     </div>
   </div>
 
-  <!-- ZEITEN (ab 0.3) -->
+  <!-- ZEITEN -->
   <div data-page="times" class="page hidden">
-    <section class="card empty">
-      <div class="big">⏱️</div>
-      <h2>Projektzeiten kommen mit Version 0.3</h2>
-      <p>Zeiten per Stoppuhr oder zum Nachtragen auf Kunden, Projekte und Aufgaben buchen.</p>
+    <section class="card" id="clockCard">
+      <div class="toolbar"><h2>Zeit erfassen</h2>
+        <div class="seg"><button data-mode="watch" class="on">Stoppuhr</button><button data-mode="manual">Nachtragen</button></div></div>
+      <div class="timer">
+        <label>Projekt <select id="tmProject"></select></label>
+        <label>Aufgabe (optional) <select id="tmTask"></select></label>
+        <label class="wide">Notiz <input id="tmNote" maxlength="500" placeholder="was hast du gemacht?"></label>
+        <label class="inline onsite"><input type="checkbox" id="tmOnSite"> vor Ort</label>
+        <div class="watchOnly elapsed" id="tmElapsed">0:00:00</div>
+        <button class="watchOnly big primary" id="tmToggle">▶ Start</button>
+      </div>
+      <div class="manualOnly hidden">
+        <div class="row" style="margin-top:10px">
+          <label>Datum <input type="date" id="mnDay"></label>
+          <label>von <input type="time" id="mnFrom" step="300"></label>
+          <label>bis <input type="time" id="mnTo" step="300"></label>
+          <label>Dauer <input id="mnDur" class="w80" placeholder="1:30"></label>
+          <label class="teamBoss hidden">für <select id="mnUser"></select></label>
+          <label>&nbsp;<button class="primary" id="mnSave">Speichern</button></label>
+        </div>
+      </div>
+      <p class="muted small watchOnly" id="tmInfo" style="margin:10px 0 0"></p>
+      <div class="err" id="tmErr"></div>
+    </section>
+
+    <section class="card">
+      <div class="toolbar"><h2 id="wkTitle">Woche</h2>
+        <div class="row"><select id="wkUser" class="teamBoss hidden"></select>
+          <button id="wkPrev" title="Woche zurück">‹</button><button id="wkToday">Heute</button><button id="wkNext" title="Woche vor">›</button></div></div>
+      <div class="weekbar" id="wkBar"></div>
+      <div id="wkList"></div>
+      <div class="err" id="wkErr"></div>
     </section>
   </div>
 
-  <!-- AUSWERTUNG (ab 0.3) -->
+  <!-- AUSWERTUNG -->
   <div data-page="reports" class="page hidden">
-    <section class="card empty">
-      <div class="big">📊</div>
-      <h2>Auswertungen kommen mit Version 0.3</h2>
-      <p>Stunden nach Kunde, Projekt<span class="teamOnly"> und Mitarbeiter</span> – als PDF, Excel und CSV.</p>
+    <section class="card">
+      <div class="filters">
+        <label>Zeitraum <select id="rpPeriod">
+          <option value="week">Diese Woche</option><option value="lastweek">Letzte Woche</option>
+          <option value="month" selected>Dieser Monat</option><option value="lastmonth">Letzter Monat</option>
+          <option value="year">Dieses Jahr</option><option value="lastyear">Letztes Jahr</option>
+          <option value="custom">Frei wählen …</option></select></label>
+        <label class="rpCustom hidden">von <input type="date" id="rpFrom"></label>
+        <label class="rpCustom hidden">bis <input type="date" id="rpTo"></label>
+        <label>Kunde <select id="rpCustomer"></select></label>
+        <label>Projekt <select id="rpProject"></select></label>
+        <label class="teamBoss hidden">Mitarbeiter <select id="rpUser"></select></label>
+        <label>Gruppieren nach <select id="rpGroup"></select></label>
+        <div class="exp"><button data-exp="pdf">PDF</button><button data-exp="xlsx">Excel</button><button data-exp="csv">CSV</button></div>
+      </div>
+      <div class="stats" id="rpStats"></div>
+      <div class="err" id="rpErr"></div>
+    </section>
+    <section class="card">
+      <div class="toolbar"><h2 id="rpTitle">Auswertung</h2>
+        <div class="seg"><button data-rpview="sum" class="on">Summen</button><button data-rpview="entries">Einzelbuchungen</button></div></div>
+      <div class="scroll"><table id="rpTable"></table></div>
+      <p class="muted small" id="rpNote" style="margin:12px 0 0"></p>
     </section>
   </div>
 
@@ -311,5 +359,6 @@
 
 <script src="static/app.js?v={{v}}"></script>
 <script src="static/tasks.js?v={{v}}"></script>
+<script src="static/times.js?v={{v}}"></script>
 </body>
 </html>

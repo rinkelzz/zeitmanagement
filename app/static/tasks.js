@@ -138,6 +138,7 @@ function renderTasks() {
   });
   $("taskList").innerHTML = h;
   $$("#taskList [data-cb]").forEach(b => b.onclick = () => toggleDone(Number(b.dataset.cb)));
+  $$("#taskList [data-play]").forEach(b => b.onclick = () => window.playTask(T.tasks.find(x => x.id === Number(b.dataset.play))));
   $$("#taskList [data-open]").forEach(b => b.onclick = () => { T.openEdit = T.openEdit === Number(b.dataset.open) ? null : Number(b.dataset.open); renderTasks(); });
   if (T.openEdit) bindEditor();
 }
@@ -149,11 +150,14 @@ function taskRow(t) {
   const notes = t.notes ? '<span title="Notiz">📝</span>' : "";
   const done = t.done ? `<span>erledigt ${esc(fmtDT(t.completed_at))}${isTeam() && t.completed_by_name ? " von " + esc(t.completed_by_name) : ""}</span>` : "";
   const av = isTeam() ? t.assignee_ids.map((id, i) => `<span class="av ${avClass(id)}" title="${esc(t.assignees[i])}">${esc(initials(t.assignees[i]))}</span>`).join("") : "";
+  const running = window.timerTaskId && window.timerTaskId() === t.id;
+  const play = !t.done && t.project_kind === "project"
+    ? `<button class="play ${running ? "run" : ""}" data-play="${t.id}" title="${running ? "Stoppuhr stoppen" : "Zeit auf diese Aufgabe buchen"}">${running ? "■" : "▶"}</button>` : "";
   return `<div class="task ${t.done ? "isdone" : ""}">
     <button class="cb ${t.done ? "done" : t.priority === 1 ? "p1" : t.priority === 2 ? "p2" : ""}" data-cb="${t.id}" title="${t.done ? "wieder öffnen" : "erledigt"}"></button>
     <div class="body" data-open="${t.id}"><div class="t">${esc(t.title)}</div>
       <div class="meta">${due}${t.done ? "" : prioTag(t.priority)}${proj}${notes}${done}</div></div>
-    <div class="tright">${av}</div></div>`;
+    <div class="tright"><span>${av}</span>${play}</div></div>`;
 }
 
 function projectOptions(sel) {

@@ -110,6 +110,7 @@ async function start() {
   showMe();
   $("httpWarn").classList.toggle("hidden", !state.me.insecure_http);
   applyMode();
+  if (window.refreshRunning) refreshRunning();
   const [wanted, sec] = ((location.hash || "").slice(1) || store.get("tab") || "tasks").split("/");
   if (sec) store.set("asec", sec);
   await showTab(TABS.includes(wanted) && (wanted !== "admin" || isAdmin()) ? wanted : "tasks");
@@ -130,6 +131,8 @@ async function showTab(name) {
   history.replaceState(null, "", "#" + name + (name === "admin" ? "/" + (store.get("asec") || "einstellungen") : ""));
   try {
     if (name === "tasks" && window.loadTasks) await loadTasks();
+    if (name === "times" && window.loadTimes) await loadTimes();
+    if (name === "reports" && window.loadReports) await loadReports();
     if (name === "admin") { showAdminSec(store.get("asec") || "einstellungen"); await loadAdmin(); }
     if (name === "me") loadMe();
   } catch (e) { console.error(e); }

@@ -2,6 +2,30 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.3.0] – 2026-11-05
+
+### Neu
+- **Projektzeiten – Stoppuhr:** Projekt (und optional Aufgabe) wählen, Start drücken. Pro Person läuft höchstens eine Uhr;
+  wer ein anderes Projekt wählt oder startet, beendet die laufende automatisch. Notiz, Aufgabe und „vor Ort“ lassen sich
+  ändern, während die Uhr läuft, der Beginn lässt sich korrigieren. Eine vergessene Uhr wird beim Stoppen auf 24 Stunden gekürzt.
+- **▶ an jeder Aufgabe** in einem Projekt startet die Stoppuhr direkt für diese Aufgabe, ■ stoppt sie.
+- **Laufende Stoppuhr in der Kopfzeile** – auf jeder Seite sichtbar und mit einem Klick zu stoppen.
+- **Nachtragen** mit Datum, von/bis oder Dauer (1:30 oder 1,5), auch über Mitternacht. Der Chef kann für andere nachtragen.
+- **Kennzeichen „vor Ort“** für Termine beim Kunden.
+- **Wochenansicht** mit Tagessummen, Wochensumme und Bearbeiten/Löschen jeder Buchung; der Chef kann die Woche jeder Person ansehen.
+- **Auswertung:** Zeitraum (Woche, Monat, Jahr, frei), Kunde, Projekt, Mitarbeiter; gruppiert nach Kunde → Projekt, Projekt,
+  Projekt → Aufgabe, Mitarbeiter → Projekt oder Tag; Summen mit Anteil oder Einzelbuchungen.
+- **Export als PDF, Excel und CSV** – mit Firmenname und Logo, PDF mehrseitig, Excel mit Übersicht und Buchungen, alles gegen
+  Formel-Injection abgesichert. Exporte stehen im Änderungsprotokoll.
+- Buchungen derselben Person dürfen sich nicht überschneiden. Projekte mit gebuchten Zeiten lassen sich nur archivieren, nicht löschen.
+
+### Rechte
+- Mitarbeiter buchen nur auf Projekte, in denen sie Mitglied sind, und sehen in Woche und Auswertung nur ihre eigenen Zeiten.
+  Der Chef sieht und ändert alle.
+
+### Technik
+- Datenbank-Schema Version 3 (Zeitbuchungen). openpyxl (reines Python) für den Excel-Export im Paket.
+
 ## [0.2.0] – 2026-11-04
 
 ### Neu
@@ -53,5 +77,6 @@ Erste Version: das Fundament. Aufgaben (0.2) und Projektzeiten (0.3) folgen.
 - Echte Client-IP hinter dem DSM-Reverse-Proxy nur von 127.0.0.1, kein SMTP-Passwort in Sicherungen,
   CSV-Export gegen Formel-Injection geschützt. Details in [SECURITY.md](SECURITY.md).
 
+[0.3.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.3.0
 [0.2.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.2.0
 [0.1.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.1.0
