@@ -2,7 +2,7 @@
 // Kalender: Monat, Woche, Tag; Termine anlegen/bearbeiten; Aufgaben einblenden; Kalender-Abo unter „Mein Zugang“.
 // Nutzt die Hilfen aus app.js/tasks.js ($, $$, api, esc, state, isTeam, isAdmin, okMsg, store, RECUR_OPTS).
 
-const CAL = { view: null, anchor: new Date(), events: [], tasks: [], projects: [], people: [], edit: null };
+const CAL = { view: null, anchor: new Date(), events: [], tasks: [], shifts: [], projects: [], people: [], edit: null };
 const HOUR_PX = 44;
 const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 const WD_SHORT = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
@@ -40,7 +40,7 @@ async function refreshCalendar() {
   const [a, b] = calRange();
   try {
     const r = await api(`events?from=${cIso(a)}&to=${cIso(b)}&with_tasks=${$("calTasks").checked}`);
-    CAL.events = r.events; CAL.tasks = r.tasks;
+    CAL.events = r.events; CAL.tasks = r.tasks; CAL.shifts = r.shifts || [];
   } catch (e) { $("calErr").textContent = e.message; return; }
   const an = CAL.anchor;
   $("calTitle").textContent = CAL.view === "month" ? `${MONTHS[an.getMonth()]} ${an.getFullYear()}`
@@ -67,13 +67,19 @@ function taskChip(t) {
     `${t.done ? "☑" : "☐"} ${t.time ? `<b>${t.time}</b> ` : ""}${esc(t.title)}</div>`;
 }
 
+function shiftChip(s) {
+  return `<div class="cshift" data-goroster="${s.day}" style="--c:${esc(s.color)}" title="Dienstplan: ${esc(s.label)}${s.note ? " – " + esc(s.note) : ""}">` +
+    `${s.kind === "work" ? `<b>${s.start_time}–${s.end_time}</b> ` : ""}${esc(s.label)}</div>`;
+}
+const shiftsOn = (iso) => CAL.shifts.filter(s => s.day === iso).map(shiftChip).join("");
+
 function renderMonth(start) {
   const today = cIso(new Date()), month = CAL.anchor.getMonth();
   let h = '<div class="mgrid">' + WD_SHORT.map(w => `<div class="mhead">${w}</div>`).join("");
   for (let i = 0; i < 42; i++) {
     const d = cAdd(start, i), iso = cIso(d);
     const evs = eventsOn(iso), tks = CAL.tasks.filter(t => t.day === iso);
-    const items = evs.map(e => chip(e, iso)).concat(tks.map(taskChip));
+    const items = CAL.shifts.filter(s => s.day === iso).map(shiftChip).concat(evs.map(e => chip(e, iso)), tks.map(taskChip));
     const max = 4;
     h += `<div class="mcell ${d.getMonth() !== month ? "other" : ""} ${iso === today ? "today" : ""} ${i % 7 > 4 ? "we" : ""}" data-day="${iso}">
       <div class="mday"><span>${d.getDate()}</span></div>${items.slice(0, max).join("")}
@@ -108,7 +114,7 @@ function renderGrid(start, ndays) {
   // ganztägig + Aufgaben ohne Zeit
   h += `<div class="wallday" style="${cols}"><div class="muted small">ganzt.</div>` + days.map(d => {
     const iso = cIso(d);
-    return `<div data-day="${iso}">${CAL.events.filter(e => e.all_day && e.day <= iso && e.last_day >= iso).map(e => chip(e, iso)).join("")}` +
+    return `<div data-day="${iso}">${shiftsOn(iso)}${CAL.events.filter(e => e.all_day && e.day <= iso && e.last_day >= iso).map(e => chip(e, iso)).join("")}` +
       CAL.tasks.filter(t => t.day === iso && !t.time).map(taskChip).join("") + "</div>";
   }).join("") + "</div>";
   h += `<div class="wbody" id="wbody"><div class="wtimes" style="${cols}"><div class="hours">` +
@@ -144,6 +150,9 @@ function renderGrid(start, ndays) {
 function bindCal() {
   $$("#calBody [data-ev]").forEach(el => el.onclick = (ev) => { ev.stopPropagation(); openEvent(Number(el.dataset.ev), el.dataset.evday); });
   $$("#calBody [data-task]").forEach(el => el.onclick = (ev) => { ev.stopPropagation(); store.set("taskView", "open"); showTab("tasks"); });
+  $$("#calBody [data-goroster]").forEach(el => el.onclick = (ev) => {
+    ev.stopPropagation(); if (window.RS) RS.anchor = new Date(el.dataset.goroster + "T12:00:00"); showTab("roster");
+  });
   $$("#calBody [data-goday]").forEach(el => el.onclick = (ev) => {
     ev.stopPropagation(); CAL.anchor = new Date(el.dataset.goday + "T12:00:00"); CAL.view = "day"; store.set("calView", "day"); refreshCalendar();
   });

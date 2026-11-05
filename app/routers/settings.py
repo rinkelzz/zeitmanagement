@@ -196,7 +196,7 @@ def reminder_test(user=Depends(current_user), conn: sqlite3.Connection = Depends
 
 # --- Änderungsprotokoll -------------------------------------------------------
 
-AUDIT_CATEGORIES = {"aufgaben": "Aufgaben", "kalender": "Kalender", "zeiten": "Zeiten", "projekte": "Projekte & Kunden", "anmeldung": "Anmeldung",
+AUDIT_CATEGORIES = {"aufgaben": "Aufgaben", "kalender": "Kalender", "dienstplan": "Dienstplan", "zeiten": "Zeiten", "projekte": "Projekte & Kunden", "anmeldung": "Anmeldung",
                     "benutzer": "Benutzer", "einstellungen": "Einstellungen", "sicherung": "Datensicherung"}
 AUDIT_ACTIONS = {
     "task_created": ("aufgaben", "Aufgabe angelegt"),
@@ -204,6 +204,12 @@ AUDIT_ACTIONS = {
     "task_done": ("aufgaben", "Aufgabe erledigt"),
     "task_reopened": ("aufgaben", "Aufgabe wieder geöffnet"),
     "task_deleted": ("aufgaben", "Aufgabe gelöscht"),
+    "shift_saved": ("dienstplan", "Schicht eingetragen"),
+    "shift_deleted": ("dienstplan", "Schicht entfernt"),
+    "shift_type_saved": ("dienstplan", "Schichtart gespeichert"),
+    "roster_copied": ("dienstplan", "Woche kopiert"),
+    "roster_published": ("dienstplan", "Woche veröffentlicht"),
+    "roster_unpublished": ("dienstplan", "Veröffentlichung zurückgenommen"),
     "event_created": ("kalender", "Termin angelegt"),
     "event_updated": ("kalender", "Termin geändert"),
     "event_deleted": ("kalender", "Termin gelöscht"),

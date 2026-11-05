@@ -30,6 +30,7 @@
   <nav id="tabs">
     <button data-tab="tasks">Aufgaben</button>
     <button data-tab="calendar">Kalender</button>
+    <button data-tab="roster">Dienstplan</button>
     <button data-tab="times">Zeiten</button>
     <button data-tab="reports">Auswertung</button>
     <button data-tab="admin" class="admin hidden">Verwaltung</button>
@@ -90,6 +91,28 @@
       <div id="calBody"></div>
     </section>
     <div id="evModal" class="modal hidden" role="dialog" aria-modal="true"><div class="card modalcard" id="evForm"></div></div>
+  </div>
+
+  <!-- DIENSTPLAN -->
+  <div data-page="roster" class="page hidden">
+    <section class="card">
+      <div class="toolbar caltool">
+        <div class="row"><button id="rsPrev" title="Vorwoche">‹</button><button id="rsToday">Diese Woche</button><button id="rsNext" title="nächste Woche">›</button>
+          <h2 id="rsTitle" style="margin:0 6px"></h2><span id="rsState"></span></div>
+        <div class="row">
+          <button class="rsBoss hidden" id="rsCopy" title="alle Schichten der Vorwoche in diese Woche übernehmen">Vorwoche übernehmen</button>
+          <button id="rsPdf">PDF</button>
+          <button class="rsBoss hidden danger" id="rsUnpublish">Zurücknehmen</button>
+          <button class="rsBoss hidden primary" id="rsPublish">Veröffentlichen</button>
+        </div>
+      </div>
+      <div class="err" id="rsErr"></div>
+      <div id="rsBody"></div>
+      <div id="rsMine" class="mobileOnly"></div>
+      <p class="muted small rsBoss hidden" style="margin:10px 0 0">Auf ein Feld klicken, um eine Schicht einzutragen. Mitarbeiter sehen die Woche erst nach
+        dem Veröffentlichen – dann auch im Kalender und im Kalender-Abo. Schichtarten und wer im Plan steht: Verwaltung → Dienstplan.</p>
+    </section>
+    <div id="rsModal" class="modal hidden" role="dialog" aria-modal="true"><div class="card modalcard" id="rsForm"></div></div>
   </div>
 
   <!-- ZEITEN -->
@@ -168,6 +191,7 @@
     <nav class="subnav" id="adminNav" aria-label="Verwaltung">
       <button data-asec="benutzer" class="teamOnly">👥 Benutzer</button>
       <button data-asec="einstellungen">⚙️ Einstellungen</button>
+      <button data-asec="dienstplan">🗓️ Dienstplan</button>
       <button data-asec="mail">✉️ Mail</button>
       <button data-asec="system" title="Port, Datensicherung, Updates">💾 System</button>
       <button data-asec="protokoll">📜 Protokoll</button>
@@ -233,6 +257,31 @@
         <button class="primary" id="setBtn">Einstellungen speichern</button>
         <div class="err" id="setErr"></div>
       </div>
+    </section>
+
+    <section class="card asec" data-asec="dienstplan">
+      <div class="toolbar"><h2>Schichtarten</h2></div>
+      <div class="scroll"><table id="stTable" class="sttable"></table></div>
+      <details class="more"><summary>＋ Schichtart anlegen</summary>
+        <div class="row" style="margin-top:8px">
+          <label>Name <input id="ntName" maxlength="40" placeholder="z. B. Mitteldienst"></label>
+          <label>Kürzel <input id="ntShort" class="w50" maxlength="3" placeholder="M"></label>
+          <label>Art <select id="ntKind"><option value="work">Dienst</option><option value="off">Abwesend (Urlaub, Schule …)</option></select></label>
+          <label class="ntWork">von <input type="time" id="ntFrom" step="300"></label>
+          <label class="ntWork">bis <input type="time" id="ntTo" step="300"></label>
+          <label class="ntWork">Pause (Min.) <input type="number" id="ntBreak" class="w60" min="0" max="240" step="5" value="30"></label>
+          <label>Farbe <input type="color" id="ntColor" value="#7c3aed"></label>
+          <label>&nbsp;<button class="primary" id="ntAdd">Anlegen</button></label>
+        </div>
+      </details>
+      <p class="muted small">Änderungen an einer Schichtart gelten für neu eingetragene Schichten – bereits geplante Wochen bleiben, wie sie sind.
+        Archivierte Schichtarten tauchen beim Planen nicht mehr auf. Endet ein Dienst vor seinem Beginn (z. B. 22:00–06:00), geht er über Mitternacht.</p>
+      <div class="teamOnly">
+        <h3 style="margin:16px 0 6px">Wer steht im Dienstplan?</h3>
+        <div id="stPeople" style="display:flex;flex-wrap:wrap;gap:6px 18px"></div>
+        <p class="muted small">Zum Beispiel den Chef selbst ausblenden, wenn er nicht mitplant.</p>
+      </div>
+      <div class="err" id="stErr"></div>
     </section>
 
     <section class="card asec" data-asec="mail">
@@ -396,5 +445,6 @@
 <script src="static/tasks.js?v={{v}}"></script>
 <script src="static/times.js?v={{v}}"></script>
 <script src="static/calendar.js?v={{v}}"></script>
+<script src="static/roster.js?v={{v}}"></script>
 </body>
 </html>

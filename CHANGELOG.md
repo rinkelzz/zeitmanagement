@@ -2,6 +2,30 @@
 
 Alle nennenswerten Änderungen an diesem Projekt. Versionen nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.6.0] – 2026-11-05
+
+### Neu
+- **Dienstplan** als neuer Reiter: Wochenraster Mitarbeiter × Montag–Sonntag mit Stundensumme pro Person und
+  **Besetzung** pro Tag. Der Chef trägt per Klick eine Schichtart ein oder eigene Zeiten mit Pause und Notiz;
+  geteilte Dienste sind möglich, Überschneidungen (auch über Mitternacht) werden abgelehnt.
+- **Schichtarten** unter Verwaltung → Dienstplan: Frühdienst, Spätdienst, Nachtdienst, Urlaub, Krank und Frei sind
+  voreingestellt; Name, Kürzel, Zeiten, Pause und Farbe änderbar, eigene anlegen, archivieren. Geplante Wochen
+  behalten ihre Werte, auch wenn eine Schichtart später geändert wird.
+- **Vorwoche übernehmen** kopiert alle Schichten der letzten Woche.
+- **Veröffentlichen:** Entwürfe sehen nur der Chef; nach dem Veröffentlichen das ganze Team. Auf Wunsch bekommt jede
+  Person ihre Schichten der Woche per Mail. „Zurücknehmen“ blendet die Woche wieder aus.
+- **Wochenplan als PDF** im Querformat mit Firmenname, Logo, Farben, Stunden, Besetzung und Legende.
+- Eigene veröffentlichte **Schichten im Kalender** und im **Kalender-Abo** (iCal).
+- Festlegen, **wer im Dienstplan steht** (z. B. den Chef ausblenden); am Handy zusätzlich „Meine Woche“.
+- Änderungsprotokoll mit dem neuen Bereich „Dienstplan“.
+
+### Geändert
+- Die Kopfzeile bleibt mit sechs Reitern und laufender Stoppuhr auch auf kleineren Bildschirmen einzeilig.
+
+### Technik
+- Datenbank-Schema Version 6 (Schichtarten, Schichten, veröffentlichte Wochen, „im Dienstplan“ je Benutzer).
+- PDF-Erzeugung kann jetzt auch Querformat.
+
 ## [0.5.0] – 2026-11-05
 
 ### Neu
@@ -114,6 +138,7 @@ Erste Version: das Fundament. Aufgaben (0.2) und Projektzeiten (0.3) folgen.
 - Echte Client-IP hinter dem DSM-Reverse-Proxy nur von 127.0.0.1, kein SMTP-Passwort in Sicherungen,
   CSV-Export gegen Formel-Injection geschützt. Details in [SECURITY.md](SECURITY.md).
 
+[0.6.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.6.0
 [0.5.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.5.0
 [0.4.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.4.0
 [0.3.0]: https://github.com/rinkelzz/zeitmanagement/releases/tag/v0.3.0

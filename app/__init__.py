@@ -1,2 +1,2 @@
 """Zeitmanagement – Aufgaben, Projektzeiten, Kalender und Dienstplan für die Synology NAS."""
-__version__ = "0.5.0"
+__version__ = "0.6.0"

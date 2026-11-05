@@ -53,6 +53,7 @@ def user_out(row: sqlite3.Row) -> dict:
         "has_password": bool(row["password_hash"]),
         "theme": row["theme"],
         "remind": bool(row["remind"]) if "remind" in row.keys() else True,
+        "in_roster": bool(row["in_roster"]) if "in_roster" in row.keys() else True,
     }
 
 

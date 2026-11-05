@@ -10,9 +10,8 @@ Aufgaben, Projektzeiten, Kalender und Dienstplan für kleine Firmen, Praxen und 
 auf der eigenen Synology NAS, mit eigenem Fenster in DSM. Wer in DSM angemeldet ist, ist es auch hier.
 Die Daten bleiben im Haus.
 
-> **Stand:** Version 0.5 – Aufgaben, **Kalender mit iCal-Abo fürs Handy** und Projektzeiten mit Auswertung als PDF,
-> Excel und CSV. Der Dienstplan folgt – siehe [Fahrplan](#fahrplan).
-> Kalender und Dienstplan folgen – siehe [Fahrplan](#fahrplan).
+> **Stand:** Version 0.6 – Aufgaben, Kalender mit iCal-Abo fürs Handy, **Dienstplan mit Wochen-PDF** und Projektzeiten
+> mit Auswertung als PDF, Excel und CSV. Damit sind alle geplanten Ausbaustufen da – siehe [Fahrplan](#fahrplan).
 
 ![Aufgaben](docs/screenshots/aufgaben.png)
 
@@ -21,6 +20,7 @@ Die Daten bleiben im Haus.
 - [Funktionen](#funktionen)
 - [Aufgaben](#aufgaben)
 - [Kalender und Abo fürs Handy](#kalender-und-abo-fürs-handy)
+- [Dienstplan](#dienstplan)
 - [Projektzeiten und Auswertung](#projektzeiten-und-auswertung)
 - [Fahrplan](#fahrplan)
 - [Installation auf der Synology](#installation-auf-der-synology)
@@ -41,6 +41,8 @@ Die Daten bleiben im Haus.
 - **Tägliche Erinnerungs-Mail** mit überfälligen und heute fälligen Aufgaben, Uhrzeit einstellbar, pro Person abschaltbar.
 - **Kalender** mit Monat, Woche und Tag, Serienterminen, Teilnehmern und Aufgaben im Kalender – und einem
   **iCal-Abo** für iPhone, Outlook und Google Kalender.
+- **Dienstplan** als Wochenraster (Mitarbeiter × Tage) mit eigenen Schichtarten, Urlaub/Krank, Stundensumme und
+  Besetzung pro Tag, „Vorwoche übernehmen“, Veröffentlichen mit Mail an alle und **Wochenplan als PDF** zum Aushängen.
 - **Projektzeiten** per Stoppuhr (auch direkt an der Aufgabe mit ▶) oder nachgetragen, mit Kennzeichen „vor Ort“.
   Die laufende Stoppuhr steht immer in der Kopfzeile.
 - **Auswertung** nach Kunde, Projekt, Aufgabe, Mitarbeiter oder Tag – als **PDF, Excel und CSV**, mit Firmenname und Logo.
@@ -63,6 +65,7 @@ Die Daten bleiben im Haus.
 | | |
 |---|---|
 | ![Kalender](docs/screenshots/kalender.png) | ![Kalender Monat](docs/screenshots/kalender-monat.png) |
+| ![Dienstplan](docs/screenshots/dienstplan.png) | ![Dienstplan als PDF](docs/screenshots/dienstplan-pdf.png) |
 | ![Zeiten](docs/screenshots/zeiten.png) | ![Auswertung](docs/screenshots/auswertung.png) |
 | ![Projekt bearbeiten](docs/screenshots/projekt.png) | ![Einstellungen](docs/screenshots/einstellungen.png) |
 | ![Anmeldung](docs/screenshots/anmeldung.png) | ![Mein Zugang](docs/screenshots/mein-zugang.png) |
@@ -136,6 +139,37 @@ deine Termine (ab 90 Tagen zurück, Serien als echte Serien), auf Wunsch die fä
 **Erinnerung** („15 Minuten vorher“), die dann das Handy auslöst. Für unterwegs braucht es die öffentliche
 https-Adresse (Reverse Proxy). Der Link ist geheim wie ein Passwort; „Neuen Link erzeugen“ macht den alten sofort ungültig.
 
+## Dienstplan
+
+![Dienstplan](docs/screenshots/dienstplan.png)
+
+Der Reiter **Dienstplan** zeigt eine Woche: links die Mitarbeiter, rechts Montag bis Sonntag, ganz rechts die Stunden
+der Woche, unten die **Besetzung** pro Tag (wie viele im Dienst, welche Schichten). So siehst du auf einen Blick, wo
+noch jemand fehlt.
+
+**Planen (Chef):** Auf ein Feld klicken und eine **Schichtart** wählen – Frühdienst, Spätdienst, Nachtdienst oder
+Abwesenheit wie Urlaub, Krank, Frei. Unter „Eigene Zeiten“ lassen sich Beginn, Ende, Pause und eine Notiz
+(z. B. Station oder Filiale) anpassen. Zwei Dienste am selben Tag (geteilter Dienst) gehen, solange sie sich nicht
+überschneiden; ein Nachtdienst 22:00–06:00 gehört zum Tag, an dem er beginnt, und wird bei Überschneidungen mit dem
+Folgetag berücksichtigt. **„Vorwoche übernehmen“** kopiert die letzte Woche als Vorlage.
+
+| | |
+|---|---|
+| ![Schicht eintragen](docs/screenshots/dienstplan-schicht.png) | ![Schichtarten](docs/screenshots/schichtarten.png) |
+
+**Veröffentlichen:** Solange eine Woche ein **Entwurf** ist, sehen Mitarbeiter sie nicht. Nach „Veröffentlichen“ sieht
+das ganze Team den Plan, auf Wunsch bekommt jeder seine Schichten der Woche **per Mail**, und die eigenen Schichten
+erscheinen im **Kalender** und im **Kalender-Abo** am Handy. „Zurücknehmen“ blendet die Woche wieder aus.
+
+**PDF:** Der Wochenplan im Querformat mit Firmenname, Logo, Farben, Stunden, Besetzung und Legende – zum Aushängen
+am Schwarzen Brett.
+
+**Schichtarten** (Name, Kürzel, Zeiten, Pause, Farbe) pflegst du unter **Verwaltung → Dienstplan**. Änderungen gelten
+für neu eingetragene Schichten; bereits geplante Wochen bleiben, wie sie sind. Dort legst du auch fest, **wer im
+Dienstplan steht** – etwa den Chef selbst ausblenden. Am Handy steht unter dem Plan zusätzlich „Meine Woche“.
+
+<img src="docs/screenshots/dienstplan-handy.png" alt="Dienstplan am Handy" width="300">
+
 ## Projektzeiten und Auswertung
 
 **Buchen.** Zeiten gehen immer auf ein *Projekt* (Aufgabenlisten sind nur für To-dos), optional auf eine Aufgabe darin:
@@ -174,7 +208,7 @@ Der Chef sieht alles.
 | **0.3** ✅ | **Projektzeiten:** Kunden und Projekte, Stoppuhr oder Nachtragen, Auswertung nach Kunde/Projekt/Mitarbeiter, Export PDF/Excel/CSV |
 | **0.4** ✅ | Wiederkehrende Aufgaben, Checklisten, Erinnerung zur Uhrzeit, Projektbudget mit Warnung, „abgerechnet“ mit Sperre |
 | **0.5** ✅ | **Kalender:** Monat/Woche/Tag, Serien, Teilnehmer, Aufgaben im Kalender, iCal-Abo fürs Handy |
-| später | **Dienstplan** mit Wochenplan als PDF |
+| **0.6** ✅ | **Dienstplan:** Wochenraster, Schichtarten, Urlaub/Krank, Besetzung, Vorwoche übernehmen, Veröffentlichen mit Mail, Wochen-PDF, Schichten im Kalender |
 
 ## Installation auf der Synology
 
@@ -285,7 +319,10 @@ for DSM users. The user interface is German.
 - Comfort (0.4): recurring tasks, checklists, reminders at a set time, project budgets with warnings, “billed” flag that
   locks entries.
 - Calendar (0.5): month/week/day views, recurring events, attendees, tasks shown in the calendar, and a private iCal
-  subscription link for iPhone, Outlook or Google Calendar. Shift planning comes next.
+  subscription link for iPhone, Outlook or Google Calendar.
+- Shift planning (0.6): weekly roster (employees × days) with configurable shift types, absences, weekly hours and
+  daily staffing, copy previous week, publish with email to everyone, landscape PDF for the notice board, and published
+  shifts in the calendar and the iCal feed.
 
 Install: download the `.spk` from [Releases](https://github.com/rinkelzz/zeitmanagement/releases) →
 Package Center → Manual Install. Security notes: [SECURITY.md](SECURITY.md). License: MIT.

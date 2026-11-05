@@ -72,7 +72,8 @@ def rrule(rule: str, until: Optional[str], all_day: bool, start_local: datetime)
     return "RRULE:" + r
 
 
-def build(events: Iterable[Dict], tasks: Iterable[Dict], tzid: str, name: str, host: str) -> bytes:
+def build(events: Iterable[Dict], tasks: Iterable[Dict], tzid: str, name: str, host: str,
+          shifts: Iterable[Dict] = ()) -> bytes:
     stamp = now_utc().strftime("%Y%m%dT%H%M%SZ")
     lines = ["BEGIN:VCALENDAR", "VERSION:2.0", f"PRODID:{PRODID}", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
              f"X-WR-CALNAME:{esc(name)}", f"X-WR-TIMEZONE:{tzid}", "REFRESH-INTERVAL;VALUE=DURATION:PT30M",
@@ -116,6 +117,21 @@ def build(events: Iterable[Dict], tasks: Iterable[Dict], tzid: str, name: str, h
             ev += [f"DTSTART;VALUE=DATE:{d:%Y%m%d}", f"DTEND;VALUE=DATE:{d + timedelta(days=1):%Y%m%d}"]
         if t.get("project"):
             ev.append(f"DESCRIPTION:{esc('Aufgabe – ' + t['project'])}")
+        ev.append("END:VEVENT")
+        lines += ev
+    for sh in shifts:
+        d = date.fromisoformat(sh["day"])
+        ev = ["BEGIN:VEVENT", f"UID:shift-{sh['id']}@{host}", f"DTSTAMP:{stamp}", f"SUMMARY:{esc(sh['label'])}",
+              "CATEGORIES:Dienstplan"]
+        if sh["kind"] == "work":
+            h, m = map(int, sh["start_time"].split(":"))
+            st = datetime(d.year, d.month, d.day, h, m)
+            dur = sh["minutes"] + (sh["break_minutes"] or 0)
+            ev += [f"DTSTART;TZID={tzid}:{st:%Y%m%dT%H%M%S}", f"DTEND;TZID={tzid}:{st + timedelta(minutes=dur):%Y%m%dT%H%M%S}"]
+        else:
+            ev += [f"DTSTART;VALUE=DATE:{d:%Y%m%d}", f"DTEND;VALUE=DATE:{d + timedelta(days=1):%Y%m%d}", "TRANSP:TRANSPARENT"]
+        if sh.get("note"):
+            ev.append(f"DESCRIPTION:{esc(sh['note'])}")
         ev.append("END:VEVENT")
         lines += ev
     lines.append("END:VCALENDAR")

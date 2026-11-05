@@ -10,7 +10,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from .. import calendar_core as cal
-from .. import ical, recur
+from .. import ical, recur, roster
 from ..access import check_assignees, get_project
 from ..config import settings
 from ..db import audit, get_db, get_setting, is_team
@@ -101,7 +101,13 @@ def list_events(
     if to < from_ or (to - from_).days > 62:
         raise HTTPException(400, "Zeitraum ungültig (höchstens zwei Monate)")
     return {"events": cal.load_range(conn, user, from_, to),
-            "tasks": cal.tasks_in_range(conn, user, from_, to) if with_tasks else []}
+            "tasks": cal.tasks_in_range(conn, user, from_, to) if with_tasks else [],
+            "shifts": _own_shifts(conn, user, from_, to)}
+
+
+def _own_shifts(conn, user, d_from: date, d_to: date):
+    """Eigene Schichten – im Team nur aus veröffentlichten Wochen, allein immer."""
+    return roster.shifts_for_user(conn, user["id"], d_from, d_to, boss=not is_team(conn))
 
 
 @router.get("/events/{event_id}")
@@ -267,6 +273,7 @@ def feed(token: str, request: Request, conn: sqlite3.Connection = Depends(get_db
     tasks = cal.tasks_in_range(conn, user, since, today_local() + timedelta(days=365)) if row["with_tasks"] else []
     company = get_setting(conn, "company_name")
     name = "Zeitmanagement" + (f" · {company}" if company else "")
-    body = ical.build(events, tasks, settings.timezone, name, request.url.hostname or "zeitmanagement")
+    shifts = _own_shifts(conn, user, since, today_local() + timedelta(days=365))
+    body = ical.build(events, tasks, settings.timezone, name, request.url.hostname or "zeitmanagement", shifts)
     return Response(body, media_type="text/calendar; charset=utf-8",
                     headers={"Cache-Control": "no-store", "Content-Disposition": 'inline; filename="zeitmanagement.ics"'})

@@ -183,7 +183,7 @@ def catalog(base_url: str) -> Dict:
         "package": "zeitmanagement",
         "version": rel["version"],
         "dname": "Zeitmanagement",
-        "desc": "Aufgaben, Kalender mit iCal-Abo und Projektzeiten mit Auswertung als PDF/Excel/CSV für kleine Firmen, Praxen und Einzelpersonen.",
+        "desc": "Aufgaben, Kalender mit iCal-Abo, Dienstplan und Projektzeiten mit Auswertung als PDF/Excel/CSV für kleine Firmen, Praxen und Einzelpersonen.",
         # liegt die SPK schon auf der NAS, von dort; sonst (noch beim Herunterladen) direkt von GitHub
         "link": f"{base_url}/spk/download/{rel['name']}" if cached else rel["url"],
         "thumbnail": [icon, icon256],

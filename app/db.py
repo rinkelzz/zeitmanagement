@@ -229,6 +229,65 @@ CREATE TABLE IF NOT EXISTS calendar_tokens (
 """)
 
 
+def _m6_dienstplan(conn: sqlite3.Connection) -> None:
+    """Version 0.6: Dienstplan mit Schichtarten, Schichten und veröffentlichten Wochen."""
+    _run(conn, """
+CREATE TABLE IF NOT EXISTS shift_types (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    name          TEXT NOT NULL,
+    short         TEXT NOT NULL,                 -- Kürzel im Raster, z. B. F, S, N, U
+    kind          TEXT NOT NULL DEFAULT 'work',  -- work (Dienst) | off (Abwesenheit: Urlaub, krank, frei)
+    start_time    TEXT,                          -- HH:MM (nur Dienst)
+    end_time      TEXT,                          -- HH:MM; kleiner als Beginn = über Mitternacht
+    break_minutes INTEGER NOT NULL DEFAULT 0,
+    color         TEXT NOT NULL DEFAULT '#0f766e',
+    sort          INTEGER NOT NULL DEFAULT 0,
+    archived      INTEGER NOT NULL DEFAULT 0,
+    created_at    TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS shifts (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    day            TEXT NOT NULL,                -- YYYY-MM-DD (lokal), Tag des Beginns
+    shift_type_id  INTEGER REFERENCES shift_types(id) ON DELETE SET NULL,
+    kind           TEXT NOT NULL DEFAULT 'work',
+    start_time     TEXT,
+    end_time       TEXT,
+    break_minutes  INTEGER NOT NULL DEFAULT 0,
+    label          TEXT NOT NULL DEFAULT '',     -- Name zum Zeitpunkt der Planung
+    short          TEXT NOT NULL DEFAULT '',
+    color          TEXT NOT NULL DEFAULT '#0f766e',
+    note           TEXT NOT NULL DEFAULT '',
+    created_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at     TEXT NOT NULL,
+    updated_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_shifts_day ON shifts(day, user_id);
+CREATE INDEX IF NOT EXISTS idx_shifts_user ON shifts(user_id, day);
+
+CREATE TABLE IF NOT EXISTS shift_weeks (
+    week_start    TEXT PRIMARY KEY,              -- Montag YYYY-MM-DD
+    published_at  TEXT,
+    published_by  INTEGER REFERENCES users(id) ON DELETE SET NULL
+);
+""")
+    if "in_roster" not in _columns(conn, "users"):
+        # im Dienstplan aufführen (z. B. Chef ohne Schichten ausblenden)
+        conn.execute("ALTER TABLE users ADD COLUMN in_roster INTEGER NOT NULL DEFAULT 1")
+    if not conn.execute("SELECT 1 FROM shift_types LIMIT 1").fetchone():
+        now = now_utc_str()
+        conn.executemany(
+            "INSERT INTO shift_types(name, short, kind, start_time, end_time, break_minutes, color, sort, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [("Frühdienst", "F", "work", "06:00", "14:00", 30, "#0891b2", 1, now),
+             ("Spätdienst", "S", "work", "14:00", "22:00", 30, "#7c3aed", 2, now),
+             ("Nachtdienst", "N", "work", "22:00", "06:00", 30, "#1e3a8a", 3, now),
+             ("Urlaub", "U", "off", None, None, 0, "#16a34a", 10, now),
+             ("Krank", "K", "off", None, None, 0, "#dc2626", 11, now),
+             ("Frei", "–", "off", None, None, 0, "#94a3b8", 12, now)])
+
+
 # Version → Schritt. Nur anhängen, nie ändern!
 MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     1: _m1_basis,
@@ -236,6 +295,7 @@ MIGRATIONS: Dict[int, Callable[[sqlite3.Connection], None]] = {
     3: _m3_zeiten,
     4: _m4_komfort,
     5: _m5_kalender,
+    6: _m6_dienstplan,
 }
 SCHEMA_VERSION = max(MIGRATIONS)
 

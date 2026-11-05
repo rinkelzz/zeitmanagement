@@ -45,8 +45,9 @@ def _rgb(c: Tuple[float, float, float]) -> str:
 
 
 class PDF:
-    def __init__(self, title: str = "", author: str = "Zeitmanagement"):
+    def __init__(self, title: str = "", author: str = "Zeitmanagement", landscape: bool = False):
         self.title, self.author = title, author
+        self.w, self.h = (A4_H, A4_W) if landscape else (A4_W, A4_H)
         self.pages: List[List[str]] = []
         self.ops: List[str] = []
         self.images: List[dict] = []
@@ -68,10 +69,10 @@ class PDF:
             x -= text_width(s, size, bold) / 2
         data = _esc(_enc(s)).decode("latin-1")
         self.ops.append(f"BT /{'F2' if bold else 'F1'} {size:g} Tf {_rgb(color)} rg "
-                        f"{x:.2f} {A4_H - y:.2f} Td ({data}) Tj ET")
+                        f"{x:.2f} {self.h - y:.2f} Td ({data}) Tj ET")
 
     def rect(self, x: float, y: float, w: float, h: float, fill=(0.95, 0.95, 0.95)) -> None:
-        self.ops.append(f"{_rgb(fill)} rg {x:.2f} {A4_H - y - h:.2f} {w:.2f} {h:.2f} re f")
+        self.ops.append(f"{_rgb(fill)} rg {x:.2f} {self.h - y - h:.2f} {w:.2f} {h:.2f} re f")
 
     def image(self, x: float, y: float, w: float, h: float, img: dict) -> None:
         """Bild (siehe logo.pdf_image) an x/y (oben links) in w × h Punkt zeichnen."""
@@ -80,10 +81,10 @@ class PDF:
         if img not in self.images:
             self.images.append(img)
         n = self.images.index(img) + 1
-        self.ops.append(f"q {w:.2f} 0 0 {h:.2f} {x:.2f} {A4_H - y - h:.2f} cm /Im{n} Do Q")
+        self.ops.append(f"q {w:.2f} 0 0 {h:.2f} {x:.2f} {self.h - y - h:.2f} cm /Im{n} Do Q")
 
     def line(self, x1: float, y1: float, x2: float, y2: float, width: float = 0.5, color=(0.6, 0.6, 0.6)) -> None:
-        self.ops.append(f"{width:g} w {_rgb(color)} RG {x1:.2f} {A4_H - y1:.2f} m {x2:.2f} {A4_H - y2:.2f} l S")
+        self.ops.append(f"{width:g} w {_rgb(color)} RG {x1:.2f} {self.h - y1:.2f} m {x2:.2f} {self.h - y2:.2f} l S")
 
     # Ausgabe --------------------------------------------------------------
     def output(self) -> bytes:
@@ -121,7 +122,7 @@ class PDF:
             content = add(b"<< /Length %d /Filter /FlateDecode >>\nstream\n" % len(comp) + comp + b"\nendstream")
             kids.append(add(
                 b"<< /Type /Page /Parent %d 0 R /MediaBox [0 0 %.2f %.2f] /Contents %d 0 R "
-                b"/Resources << /Font << /F1 %d 0 R /F2 %d 0 R >>%s >> >>" % (pages_id, A4_W, A4_H, content, f1, f2, xres)))
+                b"/Resources << /Font << /F1 %d 0 R /F2 %d 0 R >>%s >> >>" % (pages_id, self.w, self.h, content, f1, f2, xres)))
         objs[pages_id - 1] = b"<< /Type /Pages /Count %d /Kids [%s] >>" % (
             len(kids), b" ".join(b"%d 0 R" % k for k in kids))
         objs[catalog - 1] = b"<< /Type /Catalog /Pages %d 0 R >>" % pages_id

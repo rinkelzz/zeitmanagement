@@ -385,3 +385,62 @@ main:has([data-page="calendar"]:not(.hidden)) { max-width: 1320px; }
 }
 .wev.short { display: flex; gap: 6px; align-items: center; padding-top: 0; padding-bottom: 0; }
 .wev.short span { flex: none; }
+
+/* Dienstplan */
+.w50 { width: 56px; } .w60 { width: 70px; }
+.cshift { font-size: 12px; line-height: 1.35; padding: 1px 6px; border-radius: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+          cursor: pointer; background: color-mix(in srgb, var(--c) 22%, var(--card)); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); font-weight: 600; }
+.cshift::before { content: "🗓 "; font-weight: 400; }
+.tag.pub { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); border-color: transparent; font-weight: 600; }
+.tag.draft { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); border-color: transparent; font-weight: 600; }
+.rscroll { margin-top: 6px; }
+.rgrid { border-collapse: separate; border-spacing: 0; width: 100%; table-layout: fixed; min-width: 760px; }
+.rgrid th, .rgrid td { border-bottom: 1px solid var(--line); border-left: 1px solid var(--line); padding: 4px; vertical-align: top; white-space: normal; }
+.rgrid thead th { font-size: 12.5px; text-align: center; color: var(--text); background: var(--bg); padding: 7px 4px; }
+.rgrid thead th.today { color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+.rgrid .rname { width: 150px; text-align: left; position: sticky; left: 0; z-index: 1; background: var(--card); font-weight: 600; font-size: 13.5px;
+                border-left: none; vertical-align: middle; }
+.rgrid thead .rname { background: var(--bg); }
+.rgrid .rname .av.sm { width: 24px; height: 24px; font-size: 10.5px; display: inline-grid; place-items: center; margin-right: 7px; vertical-align: middle; }
+.rgrid .rsum { width: 58px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 650; vertical-align: middle; }
+.rgrid td.we, .rgrid th.we { background: color-mix(in srgb, var(--bg) 55%, var(--card)); }
+.rgrid td.today { background: color-mix(in srgb, var(--accent) 5%, var(--card)); }
+.rgrid tr.mine .rname { color: var(--accent); }
+.rgrid tfoot td, .rgrid tfoot th { background: var(--bg); font-size: 13px; vertical-align: top; }
+.rcell { height: 46px; }
+.rgrid.editable .rcell { cursor: pointer; }
+.rgrid.editable .rcell:hover { outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: -2px; }
+.radd { display: grid; place-items: center; height: 100%; min-height: 36px; color: var(--line); font-size: 18px; }
+.rcell:hover .radd { color: var(--accent); }
+.rshift { display: flex; flex-wrap: wrap; gap: 0 6px; align-items: baseline; min-width: 0; overflow: hidden; border-radius: 6px; padding: 3px 6px; margin-bottom: 3px;
+          background: color-mix(in srgb, var(--c) 18%, var(--card)); border-left: 4px solid var(--c); font-size: 12px; line-height: 1.3; }
+.rshift b { font-weight: 700; } .rshift span { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rshift i { font-style: normal; color: var(--muted); }
+.rshift.off { background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--c) 14%, var(--card)) 0 6px, color-mix(in srgb, var(--c) 22%, var(--card)) 6px 12px); }
+.modalcard .rshift { display: inline-flex; margin: 0 2px; vertical-align: middle; }
+.rh { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 4px 0 0; }
+.rtypes { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.rtype { display: grid; grid-template-columns: 34px 1fr; grid-template-rows: auto auto; gap: 0 8px; text-align: left; padding: 7px 9px; border-radius: 10px;
+         border: 1px solid var(--line); border-left: 5px solid var(--c); background: var(--card); }
+.rtype b { grid-row: span 2; display: grid; place-items: center; border-radius: 7px; background: color-mix(in srgb, var(--c) 20%, var(--card)); font-size: 15px; }
+.rtype span { font-weight: 600; font-size: 13.5px; } .rtype small { color: var(--muted); font-size: 12px; }
+.rtype:hover, .rtype.on { border-color: var(--c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 30%, transparent); }
+.sttable td { vertical-align: middle; } .sttable input[type=color] { width: 40px; height: 30px; padding: 2px; }
+#rsMine h3 { margin: 14px 0 6px; font-size: 15px; }
+.rmine { display: grid; grid-template-columns: 70px 1fr; gap: 8px; padding: 6px 2px; border-bottom: 1px solid var(--line); align-items: center; font-size: 14px; }
+.rmine.today .d { color: var(--accent); font-weight: 700; }
+.rmine .rshift { display: inline-flex; margin: 0 4px 0 0; }
+@media (max-width: 720px) {
+  .rgrid .rname { width: 104px; font-size: 12.5px; }
+  .rgrid .rname .av.sm { display: none; }
+  .rgrid { min-width: 840px; }
+  .rshift { font-size: 11px; padding: 2px 4px; gap: 0 4px; }
+  .mcell .cshift { font-size: 10.5px; padding: 0 3px; }
+  .mcell .cshift b, .cshift::before { display: none; }
+}
+/* sechs Reiter + laufende Stoppuhr: Kopfzeile bleibt einzeilig */
+@media (max-width: 1440px) and (min-width: 721px) {
+  nav button { padding: 8px 10px; }
+  .hdtimer .lbl { max-width: 140px; }
+}
+@media (max-width: 1240px) and (min-width: 721px) { .userchip .lbl { display: none; } }

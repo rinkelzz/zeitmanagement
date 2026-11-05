@@ -70,7 +70,7 @@ const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { ret
                 set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* egal */ } } };
 
 // ---------- Start, Anmeldung, Reiter ----------
-const TABS = ["tasks", "calendar", "times", "reports", "admin", "me"];
+const TABS = ["tasks", "calendar", "roster", "times", "reports", "admin", "me"];
 function showLogin() {
   $("appView").classList.add("hidden"); $("loginView").classList.remove("hidden");
   setTimeout(() => $("lu").focus(), 0);
@@ -133,6 +133,7 @@ async function showTab(name) {
     if (name === "tasks" && window.loadTasks) await loadTasks();
     if (name === "times" && window.loadTimes) await loadTimes();
     if (name === "calendar" && window.loadCalendar) await loadCalendar();
+    if (name === "roster" && window.loadRoster) await loadRoster();
     if (name === "reports" && window.loadReports) await loadReports();
     if (name === "admin") { showAdminSec(store.get("asec") || "einstellungen"); await loadAdmin(); }
     if (name === "me") { loadMe(); if (window.loadFeed) loadFeed(); }
@@ -140,7 +141,7 @@ async function showTab(name) {
 }
 
 // ---------- Verwaltung ----------
-const ADMIN_SECS = ["benutzer", "einstellungen", "mail", "system", "protokoll"];
+const ADMIN_SECS = ["benutzer", "einstellungen", "dienstplan", "mail", "system", "protokoll"];
 function showAdminSec(key) {
   if (!ADMIN_SECS.includes(key) || (key === "benutzer" && !isTeam())) key = "einstellungen";
   $$("#adminNav [data-asec]").forEach(b => b.classList.toggle("active", b.dataset.asec === key));
@@ -158,6 +159,7 @@ async function loadAdmin() {
   state.users = await api("users");
   if (isTeam()) showUsers();
   jobs.push(initAudit().catch(e => { $("alErr").textContent = e.message; }));
+  if (window.loadShiftAdmin) jobs.push(loadShiftAdmin().catch(e => { $("stErr").textContent = e.message; }));
   await Promise.all(jobs);
 }
 
