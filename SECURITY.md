@@ -19,6 +19,7 @@ Unterstützt wird jeweils die neueste Version unter [Releases](https://github.co
   exakt geprüft), ohne Proxy-Umgebungsvariablen und ohne Weiterleitungen. DSM-Passwörter verlassen die NAS nie.
 - **Single Sign-on im DSM-Fenster:** Der Schlüssel (`.proxy_secret` im Paketordner) wird nur von
   Verbindungen über 127.0.0.1 ohne `X-Forwarded-For` angenommen, also nur von `app.cgi` auf der NAS selbst.
+  Die Datei ist nur für den Paketbenutzer lesbar (Modus 0600), unter dem auch `app.cgi` läuft.
 - **Echte Absenderadresse** (`X-Forwarded-For`) wird nur übernommen, wenn die Anfrage vom Reverse Proxy
   auf derselben NAS (127.0.0.1) kommt. Bei einem Proxy auf einem anderen Gerät sieht die App dessen Adresse –
   die Login-Sperre greift dann nur noch pro Benutzername.
